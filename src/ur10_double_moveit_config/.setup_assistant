@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: ur10_tut_description
+    relative_path: urdf/ur10_double.urdf.xacro
+  srdf:
+    relative_path: config/ur10_double.srdf
+  package_settings:
+    author_name: Xingjian Li
+    author_email: xli228@ncsu.edu
+    generated_timestamp: 1717907330
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

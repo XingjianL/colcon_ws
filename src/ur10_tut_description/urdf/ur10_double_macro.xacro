@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+
+  <xacro:macro name="ur10d" params="
+    parent
+    *origin
+    ur_type
+    joint_limits_parameters_file
+    kinematics_parameters_file
+    physical_parameters_file
+    visual_parameters_file
+    ">
+
+    <joint name="${ur_type}_tool_coll" type="fixed">
+      <parent link="${ur_type}_tool0"/>
+      <child link="${ur_type}_tool_eef"/>
+      <origin xyz="0 0 0"/>
+    </joint>
+
+    <link name="${ur_type}_tool_eef">
+      <visual>
+        <geometry>
+          <cylinder length="0.1" radius="0.01"/>
+        </geometry>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder length="0.1" radius="0.01"/>
+        </geometry>
+      </collision>
+    </link>
+
+
+
+    <!--This will create the specific robot-->
+    <xacro:ur_robot
+      name="${ur_type}"
+      tf_prefix="${ur_type}_"
+      parent="${parent}"
+      joint_limits_parameters_file="${joint_limits_parameters_file}"
+      kinematics_parameters_file="${kinematics_parameters_file}"
+      physical_parameters_file="${physical_parameters_file}"
+      visual_parameters_file="${visual_parameters_file}"
+    >
+      <!-- <origin xyz="0 0 0" rpy="0 0 0" /> -->
+      <xacro:insert_block name="origin" />
+    </xacro:ur_robot>
+  </xacro:macro>
+
+</robot>

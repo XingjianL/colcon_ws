@@ -1,0 +1,31 @@
+# MoveIt uses this configuration for controller management
+
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - robot1_controller
+    - robot2_controller
+
+  robot1_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - ur10_1_shoulder_pan_joint
+      - ur10_1_shoulder_lift_joint
+      - ur10_1_elbow_joint
+      - ur10_1_wrist_1_joint
+      - ur10_1_wrist_2_joint
+      - ur10_1_wrist_3_joint
+  robot2_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - ur10_2_shoulder_pan_joint
+      - ur10_2_shoulder_lift_joint
+      - ur10_2_elbow_joint
+      - ur10_2_wrist_1_joint
+      - ur10_2_wrist_2_joint
+      - ur10_2_wrist_3_joint
