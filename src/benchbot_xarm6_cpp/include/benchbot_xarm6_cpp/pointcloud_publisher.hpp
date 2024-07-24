@@ -1,6 +1,0 @@
-#ifndef POINTCLOUD_PUBLISHER_HPP
-#define POINTCLOUD_PUBLISHER_HPP
-#pragma once
-
-
-#endif

@@ -25,6 +25,8 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 
+#include "benchbot_xarm6_cpp/unique_point_cloud.hpp"
+
 namespace benchbot_xarm6
 {
     class ImageSubscriber
@@ -36,14 +38,23 @@ namespace benchbot_xarm6
         void start();
         void stop();
 
-        void process_to_rgbd(rclcpp::Time callback_time);
-        
+        bool process_to_pc( std::vector<UniquePointCloud>& unique_pcs, uint8_t instance_id);
         cv::VideoWriter video_writer_;
         std::queue<cv::Mat> image_queue_;
         std::mutex image_queue_mutex_;
 
-        bool publish_pcd_in_ros_;
+        cv::Mat cv_img_;
+        cv::Mat cv_img_segment_;
+        cv::Mat cv_img_depth_;
+
+        bool under_recon_;
     private:
+        cv::Mat depth_mmeters_;
+        cv::Mat rgb_image_;
+        Eigen::Matrix4d transformation_mat_;
+        std::set<std::tuple<uchar, uchar, uchar>> uniqueColors_;
+        open3d::camera::PinholeCameraIntrinsic intrinsics_;
+
         rclcpp::Node::SharedPtr node_;
         void RGBImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
         void SegmentImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
@@ -57,7 +68,8 @@ namespace benchbot_xarm6
         sensor_msgs::msg::PointCloud2 ros_pc;
         std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
         std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-        std::shared_ptr<open3d::geometry::PointCloud> o3d_pc;
+        //std::shared_ptr<open3d::geometry::PointCloud> o3d_pc;
+        //std::vector<benchbot_xarm6::UniquePointCloud> o3d_pc_vector_;
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_pub_;
 
         void RGBDImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, const sensor_msgs::msg::Image::ConstSharedPtr& msg_segment, const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth);
@@ -70,15 +82,6 @@ namespace benchbot_xarm6
 
         std::thread executor_thread_;
         rclcpp::executors::SingleThreadedExecutor executor_;
-
-        cv::Mat cv_img_;
-        cv::Mat cv_img_segment_;
-        cv::Mat cv_img_depth_;
-
-        std::shared_ptr<open3d::visualization::Visualizer> vis_;
-        std::thread vis_thread_;
-
-        
     };
 }
 #endif

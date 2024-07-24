@@ -30,9 +30,10 @@ set(SOURCES
     src/csv_parser.cpp
     src/image_subscribe.cpp
     src/benchbot_xarm6_cpp.cpp
+    src/unique_point_cloud.cpp
+    src/environment_info.cpp
     # add other source files here
 )
-file(GLOB SOURCES "src/*.cpp")
 add_executable(benchbot_xarm6_cpp ${SOURCES})
 
 target_include_directories(benchbot_xarm6_cpp PUBLIC

@@ -4,28 +4,16 @@
 namespace benchbot_xarm6 {
     ImageSubscriber::ImageSubscriber(rclcpp::Node::SharedPtr node) 
     {
+        intrinsics_ = open3d::camera::PinholeCameraIntrinsic(
+            640, 480, 272.868229679, 272.868229679, 320, 240
+        );
         node_ = node;
-        o3d_pc = std::make_shared<open3d::geometry::PointCloud>();
+        //o3d_pc = std::make_shared<open3d::geometry::PointCloud>();
+        //o3d_pc_vector_ = std::vector<benchbot_xarm6::UniquePointCloud>();
 
-        publish_pcd_in_ros_ = true;
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
         
-        // image_sub_color_ = node->create_subscription<sensor_msgs::msg::Image>(
-        //     "/ue5/one/Color",
-        //     10,
-        //     std::bind(&ImageSubscriber::RGBImageCallback, this, std::placeholders::_1)
-        // );
-        // image_sub_segment_ = node->create_subscription<sensor_msgs::msg::Image>(
-        //     "/ue5/one/Segmentation",
-        //     10,
-        //     std::bind(&ImageSubscriber::SegmentImageCallback, this, std::placeholders::_1)
-        // );
-        // image_sub_depth_ = node->create_subscription<sensor_msgs::msg::Image>(
-        //     "/ue5/one/Depth",
-        //     10,
-        //     std::bind(&ImageSubscriber::DepthImageCallback, this, std::placeholders::_1)
-        // );
         sync_sub_color_.subscribe(node_, "/ue5/one/Color");
         sync_sub_segment_.subscribe(node_, "/ue5/one/Segmentation");
         sync_sub_depth_.subscribe(node_, "/ue5/one/Depth");
@@ -39,9 +27,6 @@ namespace benchbot_xarm6 {
         sync_->registerCallback(std::bind(&ImageSubscriber::RGBDImageCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
         sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(0.1));
         video_writer_ = cv::VideoWriter("output.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(640, 480));
-        // Initialize Open3D visualizer
-        //vis_ = std::make_shared<open3d::visualization::Visualizer>();
-        //vis_->CreateVisualizerWindow("RGBD Point Cloud", 1280, 720);
 
     }
 
@@ -52,18 +37,17 @@ namespace benchbot_xarm6 {
 
     void ImageSubscriber::RGBImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg) 
     {
-        //std::cout << "imageCallback-RGB" << std::endl;
         try 
         {
             cv_img_ = cv_bridge::toCvShare(msg, "bgr8")->image.clone();
-            //cv::flip(cv_img, cv_img, -1);
+            
+            cv::cvtColor(cv_img_, rgb_image_, cv::COLOR_BGR2RGB);
             {
                 std::lock_guard<std::mutex> lock(image_queue_mutex_);
                 image_queue_.push(cv_img_.clone());
             }
-            cv::imshow("color_view", cv_img_);
-            cv::waitKey(1);
-            //process_to_rgbd();
+            // cv::imshow("color_view", cv_img_);
+            // cv::waitKey(1);
         }
         catch (cv_bridge::Exception& e) 
         {
@@ -77,12 +61,13 @@ namespace benchbot_xarm6 {
         {
             cv_img_depth_ = cv_bridge::toCvShare(msg, "32FC1")->image.clone();
 
-            cv::Mat normalized_image;
-            cv::threshold(cv_img_depth_, cv_img_depth_, 100.0, 0, cv::THRESH_TOZERO_INV);
-            cv::normalize(cv_img_depth_, normalized_image, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-            //cv::flip(normalized_image, normalized_image, -1);
-            cv::imshow("depth_view", normalized_image);
-            cv::waitKey(1);
+            //cv::Mat normalized_image;
+            cv::threshold(cv_img_depth_, cv_img_depth_, 800.0, 0, cv::THRESH_TOZERO_INV);
+            cv_img_depth_.convertTo(depth_mmeters_, CV_32FC1);
+            // cv::normalize(cv_img_depth_, normalized_image, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+            // //cv::flip(normalized_image, normalized_image, -1);
+            // cv::imshow("depth_view", normalized_image);
+            // cv::waitKey(1);
             //process_to_rgbd();
         }
         catch (cv_bridge::Exception& e) 
@@ -97,7 +82,15 @@ namespace benchbot_xarm6 {
         try 
         {
             cv_img_segment_ = cv_bridge::toCvShare(msg, "bgr8")->image.clone();
+            //uniqueColors_.clear();
+            for (int y = 0; y < cv_img_segment_.rows; ++y) {
+                for (int x = 0; x < cv_img_segment_.cols; ++x) {
+                    cv::Vec3b color = cv_img_segment_.at<cv::Vec3b>(y, x);
+                    uniqueColors_.insert(std::make_tuple(color[2], color[1], color[0])); // bgr -> rgb
+                }
+            }
             //cv::flip(cv_img, cv_img, -1);
+            cv::imwrite("segmentation.png", cv_img_segment_);
             cv::imshow("segmentation_view", cv_img_segment_);
             cv::waitKey(1);
         }
@@ -110,11 +103,28 @@ namespace benchbot_xarm6 {
     void ImageSubscriber::RGBDImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, const sensor_msgs::msg::Image::ConstSharedPtr& msg_segment, const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth)
     {
         auto callback_time = node_->now();
+        if (under_recon_) {
+            return;
+        }
         RCLCPP_INFO(node_->get_logger(), "RGBDImageCallback");
+
         RGBImageCallback(msg_color);
         SegmentImageCallback(msg_segment);
         DepthImageCallback(msg_depth);
-        process_to_rgbd(callback_time);
+        //process_to_rgbd(callback_time);
+
+        auto frame_transform = tf_buffer_->lookupTransform(
+            "world", "link_eef", tf2::TimePointZero
+        );
+        const auto &translation = frame_transform.transform.translation;
+        const auto &rotation = frame_transform.transform.rotation;
+        Eigen::Quaterniond q(rotation.w, rotation.x, rotation.y, rotation.z);
+        Eigen::Matrix3d rot = q.toRotationMatrix();
+        transformation_mat_.block<3, 3>(0, 0) = rot;
+        transformation_mat_(0, 3) = translation.x;
+        transformation_mat_(1, 3) = translation.y;
+        transformation_mat_(2, 3) = translation.z;
+        transformation_mat_(3, 3) = 1.0;
     }
 
     void ImageSubscriber::start()
@@ -140,80 +150,44 @@ namespace benchbot_xarm6 {
 
         cv::destroyAllWindows();
     }
-    void ImageSubscriber::process_to_rgbd(rclcpp::Time callback_time)
+    bool ImageSubscriber::process_to_pc(std::vector<UniquePointCloud>& unique_pcs, uint8_t instance_id)
     {
-        if (cv_img_.empty() || cv_img_segment_.empty() || cv_img_depth_.empty())
+        if (rgb_image_.empty() || cv_img_segment_.empty() || depth_mmeters_.empty())
         {
-            return;
+            return false;
         }
-        cv::Mat depth_mmeters;
-        cv_img_depth_.convertTo(depth_mmeters, CV_32FC1);
+        auto rgb_image = rgb_image_.clone();
+        
+        auto depth_mmeters = depth_mmeters_.clone();
         depth_mmeters *= 10.0;
-
-        cv::Mat rgb_image;
-        cv::cvtColor(cv_img_, rgb_image, cv::COLOR_BGR2RGB);
-
-        open3d::geometry::Image o3d_rgb_image;
-        o3d_rgb_image.Prepare(rgb_image.cols, rgb_image.rows, rgb_image.channels(), 1);
-        std::memcpy(o3d_rgb_image.data_.data(), rgb_image.data, o3d_rgb_image.data_.size());
-
-        open3d::geometry::Image o3d_depth_image;
-        o3d_depth_image.Prepare(cv_img_depth_.cols, cv_img_depth_.rows, cv_img_depth_.channels(), 4);
-        std::memcpy(o3d_depth_image.data_.data(), depth_mmeters.data, o3d_depth_image.data_.size());
-
-        auto rgbd_image = open3d::geometry::RGBDImage::CreateFromColorAndDepth(o3d_rgb_image, o3d_depth_image, 1000.0, 3.0, false);
-        auto intrinsics = open3d::camera::PinholeCameraIntrinsic(
-            640, 480, 272.868231007, 272.868231007, 320, 240
-        );
-
-        auto pcd = open3d::geometry::PointCloud::CreateFromRGBDImage(
-            *rgbd_image, intrinsics
-        );
-       
-
-        //cv_img_.release();
-        //cv_img_segment_.release();
-        //cv_img_depth_.release();
-
-        // Visualize point cloud
-        //vis_->UpdateGeometry(pcd);
-        //vis_->PollEvents();
-        //open3d::io::WritePointCloud("/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/pcd/pcd.ply", *pcd);
-        if (publish_pcd_in_ros_){
-            pcd->VoxelDownSample(0.001);
-            RCLCPP_INFO(node_->get_logger(), "pcd size: %ld", pcd->points_.size());
-            auto frame_transform = tf_buffer_->lookupTransform(
-                "world", "link_eef", tf2::TimePointZero
-            );
-            RCLCPP_INFO(node_->get_logger(), "frame_transform: %f %f %f", frame_transform.transform.translation.x, frame_transform.transform.translation.y, frame_transform.transform.translation.z);
-            Eigen::Matrix4d transformation_mat;
-            const auto &translation = frame_transform.transform.translation;
-            const auto &rotation = frame_transform.transform.rotation;
-            Eigen::Quaterniond q(rotation.w, rotation.x, rotation.y, rotation.z);
-            Eigen::Matrix3d rot = q.toRotationMatrix();
-            transformation_mat.block<3, 3>(0, 0) = rot;
-            transformation_mat(0, 3) = translation.x;
-            transformation_mat(1, 3) = translation.y;
-            transformation_mat(2, 3) = translation.z;
-            transformation_mat(3, 3) = 1.0;
-            pcd->Transform(transformation_mat);
-            RCLCPP_INFO(node_->get_logger(), "2");
-            o3d_pc->points_.insert(o3d_pc->points_.end(), pcd->points_.begin(), pcd->points_.end());
-            o3d_pc->colors_.insert(o3d_pc->colors_.end(), pcd->colors_.begin(), pcd->colors_.end());
-            RCLCPP_INFO(node_->get_logger(), "3");
-            o3d_pc->VoxelDownSample(0.005);
-            RCLCPP_INFO(node_->get_logger(), "4");
-            open3d::io::WritePointCloud("/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/pcd/pcd.ply", *o3d_pc); 
-            RCLCPP_INFO(node_->get_logger(), "5");
-
-            convert_to_ros_pointcloud(*o3d_pc, ros_pc, callback_time);
-            publish_pcd_in_ros_ = false;
-            //tf_buffer_->transform(ros_pc, ros_pc, "world",tf2::durationFromSec(0.1));
-            ros_pc.header.frame_id = "world";
-            point_cloud_pub_->publish(ros_pc);
-            
-            
+        // build point cloud for each unique color
+        for (auto uniqueColor : uniqueColors_){
+            bool added = false;
+            if (std::get<2>(uniqueColor) != instance_id) {
+                //RCLCPP_INFO(node_->get_logger(), "color %d %d %d not for instance %d", std::get<0>(uniqueColor), std::get<1>(uniqueColor), std::get<2>(uniqueColor), instance_id);
+                continue;
+            }
+            for (auto& unique_pc : unique_pcs) {
+                
+                added = unique_pc.buildPointCloud(depth_mmeters, cv_img_segment_, rgb_image, uniqueColor, transformation_mat_);
+                if (added) {
+                    RCLCPP_INFO(node_->get_logger(), 
+                        "color %d %d %d added for instance %d", 
+                        std::get<0>(uniqueColor), std::get<1>(uniqueColor), std::get<2>(uniqueColor), 
+                        instance_id);
+                    break;
+                }
+            }
+            // new point cloud if not added (point cloud with same color doesn't exist)
+            if (!added){
+                RCLCPP_INFO(node_->get_logger(), "adding new point cloud for color: %d %d %d", std::get<0>(uniqueColor), std::get<1>(uniqueColor), std::get<2>(uniqueColor));
+                unique_pcs.push_back(benchbot_xarm6::UniquePointCloud(uniqueColor, intrinsics_));
+                added = unique_pcs.back().buildPointCloud(depth_mmeters, cv_img_segment_, rgb_image, uniqueColor, transformation_mat_);
+            }
+            //RCLCPP_INFO(node_->get_logger(), "num of point clouds: %ld", o3d_pc_vector_.size());
+            //convert_to_ros_pointcloud(*o3d_pc, ros_pc, callback_time);
         }
+        return true;
     }
 
     void ImageSubscriber::convert_to_ros_pointcloud(const open3d::geometry::PointCloud &pc, sensor_msgs::msg::PointCloud2 &msg, rclcpp::Time callback_time)
