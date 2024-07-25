@@ -3,7 +3,7 @@
 #include <string>
 #include "benchbot_xarm6_cpp/csv_parser.hpp"
 #include <moveit/move_group_interface/move_group_interface.h>
-
+#include <rclcpp/rclcpp.hpp>
 namespace benchbot_xarm6 {
     class XARM6MoveIt
     {
@@ -19,6 +19,8 @@ namespace benchbot_xarm6 {
         void setpoint_control();
 
         void configure_move_group();
+
+        void go_home();
 
     private:
         std::string robot_name_ = "xarm6";

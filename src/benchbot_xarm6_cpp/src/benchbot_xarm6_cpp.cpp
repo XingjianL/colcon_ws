@@ -34,6 +34,7 @@ int main(int argc, char ** argv)
   
   env.robot_info_[0].ConfigCamera(node);
   env.robot_info_[0].image_subscriber->start();
+  RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
   // auto const image_subscriber = std::make_shared<benchbot_xarm6::ImageSubscriber>(node);
   // image_subscriber->start();
   for (int i = 0; i < 40; i+=7){

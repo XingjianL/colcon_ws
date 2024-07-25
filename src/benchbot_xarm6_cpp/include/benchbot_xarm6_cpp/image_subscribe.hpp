@@ -38,7 +38,12 @@ namespace benchbot_xarm6
         void start();
         void stop();
 
-        bool process_to_pc( std::vector<UniquePointCloud>& unique_pcs, uint8_t instance_id);
+        bool process_to_pc( 
+            std::vector<UniquePointCloud>& unique_pcs, 
+            uint8_t instance_id_g, 
+            uint8_t instance_id_b,
+            std::string& save_intermediate
+            );
         cv::VideoWriter video_writer_;
         std::queue<cv::Mat> image_queue_;
         std::mutex image_queue_mutex_;
@@ -47,9 +52,13 @@ namespace benchbot_xarm6
         cv::Mat cv_img_segment_;
         cv::Mat cv_img_depth_;
 
+        void waiting_for_sync();
         bool under_recon_;
+        bool waiting_msg = true;
+        std::mutex waiting_msg_mutex;
+        
     private:
-        cv::Mat depth_mmeters_;
+        cv::Mat depth_cmeters_;
         cv::Mat rgb_image_;
         Eigen::Matrix4d transformation_mat_;
         std::set<std::tuple<uchar, uchar, uchar>> uniqueColors_;

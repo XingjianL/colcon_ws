@@ -23,7 +23,8 @@ namespace benchbot_xarm6
         uint32_t id;
         std::string plant_name;
         std::string plant_variant;
-        uint8_t instance_segmentation_id;
+        uint8_t instance_segmentation_id_g;
+        uint8_t instance_segmentation_id_b;
 
         bool operator==(const PlantInfo& rhs) const;
 

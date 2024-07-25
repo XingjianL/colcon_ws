@@ -50,7 +50,9 @@ namespace benchbot_xarm6 {
                 if(!found){
                     std::vector<std::string> tokens;
                     boost::split(tokens, result[1][i], boost::is_any_of(","), boost::token_compress_off);
-                    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "adding new plant: %s, instance: %d", result[0][i].c_str(), plant.instance_segmentation_id);
+                    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), 
+                        "adding new plant: %s, instance: %d, %d", 
+                        result[0][i].c_str(), plant.instance_segmentation_id_g, plant.instance_segmentation_id_b);
                     
                     plant_info.push_back(plant);
                 }
@@ -89,14 +91,22 @@ namespace benchbot_xarm6 {
     }
 
     void EnvironmentInfo::BuildPointClouds() {
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Started");
         robot_info_[0].image_subscriber->under_recon_ = true;
         for(auto& plant : plant_info_){
-            robot_info_[0].image_subscriber->process_to_pc(plant.unique_point_clouds, plant.instance_segmentation_id);
+            std::string save_intermediate = "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/pcd/Plant" +
+                std::to_string(plant.id) + "/" + plant.plant_variant + "/";
+            robot_info_[0].image_subscriber->process_to_pc(
+                plant.unique_point_clouds, 
+                plant.instance_segmentation_id_g, plant.instance_segmentation_id_b,
+                save_intermediate);
         }
         robot_info_[0].image_subscriber->under_recon_ = false;
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Finished");
     }
 
     void EnvironmentInfo::SavePointClouds() {
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Started");
         for(auto& plant : plant_info_){
             for (auto& pc : plant.unique_point_clouds) {
                 std::string filepath = "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/pcd/Plant" + 
@@ -104,6 +114,7 @@ namespace benchbot_xarm6 {
                 pc.savePointCloud(filepath);
             }
         }
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Finished");
     }
 
     //MARK: PlantInfo
@@ -113,8 +124,9 @@ namespace benchbot_xarm6 {
 
         this->transforms = tokens[0];
         this->plant_name = tokens[1];
-        this->instance_segmentation_id = static_cast<uint8_t>(std::stof(tokens[3])+0.1);//static_cast<uint8_t>( 255.0 * std::stof(tokens[3])+0.5);
-        this->plant_variant = tokens[5];
+        this->instance_segmentation_id_g = static_cast<uint8_t>(std::stof(tokens[3])+0.1);//static_cast<uint8_t>( 255.0 * std::stof(tokens[3])+0.5);
+        this->instance_segmentation_id_b = static_cast<uint8_t>(std::stof(tokens[4])+0.1);
+        this->plant_variant = tokens[6];
     }
 
     bool PlantInfo::operator==(const PlantInfo &rhs) const {
@@ -122,7 +134,8 @@ namespace benchbot_xarm6 {
             transforms == rhs.transforms && 
             plant_name == rhs.plant_name && 
             plant_variant == rhs.plant_variant && 
-            instance_segmentation_id == rhs.instance_segmentation_id;
+            instance_segmentation_id_g == rhs.instance_segmentation_id_g &&
+            instance_segmentation_id_b == rhs.instance_segmentation_id_b;
     }
 
     //MARK: RobotInfo

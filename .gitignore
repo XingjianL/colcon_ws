@@ -6,3 +6,5 @@ src/.vscode
 src/Universal_Robots_*
 src/trac_ik
 *.avi
+*.pcd
+*.ply
