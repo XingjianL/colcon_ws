@@ -30,9 +30,12 @@ void benchbot_xarm6::XARM6MoveIt::load_robot_setpoints(const std::string& positi
     setpoint_index_ = 0;
 }
 
-void benchbot_xarm6::XARM6MoveIt::setpoint_control()
+void benchbot_xarm6::XARM6MoveIt::setpoint_control(int ind)
 {
     auto next = next_setpoint();
+    if (ind >= 0) {
+        next = setpoint_ind(ind);
+    }
     RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "loaded setpoint: %f, %f, %f, %f, %f, %f", next.x, next.y, next.z, next.roll, next.pitch, next.yaw);
     if (next.x == 0.0 && next.y == 0.0 && next.z == 0.0 && next.roll == 1000.0 && next.pitch == 10000.0 && next.yaw == 100000.0){
         return;
@@ -93,6 +96,12 @@ benchbot_xarm6::setpoints benchbot_xarm6::XARM6MoveIt::next_setpoint()
     }
     RCLCPP_ERROR(rclcpp::get_logger("benchbot_xarm6_cpp"), "End of setpoints reached!");
     return benchbot_xarm6::setpoints{0.0, 0.0, 0.0, 1000.0, 10000.0, 100000.0};
+}
+benchbot_xarm6::setpoints benchbot_xarm6::XARM6MoveIt::setpoint_ind(uint32_t ind){
+    if (ind >= robot_setpoints_.size()) {
+        return next_setpoint();
+    }
+    return robot_setpoints_[ind];
 }
 
 void benchbot_xarm6::XARM6MoveIt::go_home()

@@ -16,7 +16,7 @@ namespace benchbot_xarm6 {
         void load_robot_setpoints(const std::string& position_csv, const std::string& orientation_csv);
         std::vector<benchbot_xarm6::setpoints> get_robot_setpoints() { return robot_setpoints_; };
 
-        void setpoint_control();
+        void setpoint_control(int ind = -1);
 
         void configure_move_group();
 
@@ -29,5 +29,6 @@ namespace benchbot_xarm6 {
 
         std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_;
         benchbot_xarm6::setpoints next_setpoint();
+        benchbot_xarm6::setpoints setpoint_ind(uint32_t ind);
     };
 }

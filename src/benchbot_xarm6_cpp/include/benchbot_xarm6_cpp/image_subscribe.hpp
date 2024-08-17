@@ -21,9 +21,7 @@
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
-#include <tf2_ros/transform_listener.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
+
 
 #include "benchbot_xarm6_cpp/unique_point_cloud.hpp"
 
@@ -32,18 +30,24 @@ namespace benchbot_xarm6
     class ImageSubscriber
     {
     public:
-        ImageSubscriber(rclcpp::Node::SharedPtr node);
+        ImageSubscriber(std::string &node_name);
         ~ImageSubscriber();
 
         void start();
         void stop();
 
+        void update_intrinsics(double fov, int width, int height);
+        int capture_count_ = 0;
         bool process_to_pc( 
-            std::vector<UniquePointCloud>& unique_pcs, 
+            std::vector<UniquePointCloud>& unique_pcs,
+            const Eigen::Matrix4d &transform,
             uint8_t instance_id_g, 
             uint8_t instance_id_b,
-            std::string& save_intermediate
+            std::string& save_intermediate,
+            open3d::visualization::Visualizer& visualizer
             );
+        void save_images(std::string path);
+
         cv::VideoWriter video_writer_;
         std::queue<cv::Mat> image_queue_;
         std::mutex image_queue_mutex_;
@@ -60,7 +64,7 @@ namespace benchbot_xarm6
     private:
         cv::Mat depth_cmeters_;
         cv::Mat rgb_image_;
-        Eigen::Matrix4d transformation_mat_;
+
         std::set<std::tuple<uchar, uchar, uchar>> uniqueColors_;
         open3d::camera::PinholeCameraIntrinsic intrinsics_;
 
@@ -75,8 +79,7 @@ namespace benchbot_xarm6
 
         void convert_to_ros_pointcloud(const open3d::geometry::PointCloud &pc, sensor_msgs::msg::PointCloud2 &msg, rclcpp::Time callback_time);
         sensor_msgs::msg::PointCloud2 ros_pc;
-        std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-        std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+
         //std::shared_ptr<open3d::geometry::PointCloud> o3d_pc;
         //std::vector<benchbot_xarm6::UniquePointCloud> o3d_pc_vector_;
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_pub_;
@@ -90,7 +93,7 @@ namespace benchbot_xarm6
         std::shared_ptr<message_filters::Synchronizer<ApproxTimeSyncPolicy>> sync_;
 
         std::thread executor_thread_;
-        rclcpp::executors::SingleThreadedExecutor executor_;
+        rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
     };
 }
 #endif

@@ -4,81 +4,93 @@
 #include "benchbot_xarm6_cpp/xarm6_moveit.hpp"
 #include "benchbot_xarm6_cpp/image_subscribe.hpp"
 #include "benchbot_xarm6_cpp/environment_info.hpp"
+#include "benchbot_xarm6_cpp/planar_robot.hpp"
 int main(int argc, char ** argv)
 {
-  (void) argc;
-  (void) argv;
+  rclcpp::init(argc, argv);
+  auto const logger = rclcpp::get_logger("benchbot_xarm6_cpp");
 
   printf("hello world benchbot_xarm6_cpp package\n");
 
-  rclcpp::init(argc, argv);
+  bool reconstruct_point_clouds = true;
+  int sample_gap = 8;
+  for (int i = 0; i < argc; i++)
+  {
+    std::string arg = argv[i];
+    RCLCPP_INFO(logger, arg.c_str());
+    if (arg.find("--no-pc") == 0) {
+      printf("Skip Reconstructing PointClouds");
+      reconstruct_point_clouds = false;
+      sample_gap = 2;
+    }
+  }
+
   auto const node = std::make_shared<rclcpp::Node>(
     "benchbot_xarm6_cpp",
     rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
   );
 
-  auto const logger = rclcpp::get_logger("benchbot_xarm6_cpp");
-
-  
-  benchbot_xarm6::EnvironmentInfo env(node);
-  
-
-  benchbot_xarm6::XARM6MoveIt robot1(
-    "xarm6",
-    node
-  );
-  robot1.load_robot_setpoints(
-    "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_xyz.csv", 
-    "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_rot.csv"
-  );
-  
-  env.robot_info_[0].ConfigCamera(node);
+  benchbot_xarm6::EnvironmentInfo env(node);            // UE5 environment parser
+  benchbot_xarm6::XARM6MoveIt robot1("xarm6", node);    // MoveIt control
+  benchbot_xarm6::PlanarRobot planar_platform(node);    // planar platform control
+  std::string cam_node_name = "benchbot_xarm6_camera";
+  env.waiting_for_sync();
+  env.robot_info_[0].ConfigCamera(cam_node_name);
   env.robot_info_[0].image_subscriber->start();
+  
   RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
-  // auto const image_subscriber = std::make_shared<benchbot_xarm6::ImageSubscriber>(node);
-  // image_subscriber->start();
-  for (int i = 0; i < 40; i+=7){
-    robot1.setpoint_control();
-    rclcpp::sleep_for(std::chrono::milliseconds(3000));
-    env.BuildPointClouds();
-    env.SavePointClouds();
-    rclcpp::sleep_for(std::chrono::milliseconds(1000));
-  }
-  while (!env.robot_info_[0].image_subscriber->image_queue_.empty()){
-    cv::Mat frame;
-    {
-      std::lock_guard<std::mutex> lock(env.robot_info_[0].image_subscriber->image_queue_mutex_);
-      if (!env.robot_info_[0].image_subscriber->image_queue_.empty()) {
-        frame = env.robot_info_[0].image_subscriber->image_queue_.front();
-        env.robot_info_[0].image_subscriber->image_queue_.pop();
-      }
-    }
-    env.robot_info_[0].image_subscriber->video_writer_.write(frame);
-  }
-  robot1.load_robot_setpoints(
-    "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints2_xyz.csv", 
-    "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints2_rot.csv"
-  );
-  for (int i = 0; i < 40; i+=7){
-    robot1.setpoint_control();
-    rclcpp::sleep_for(std::chrono::milliseconds(3000));
-    env.BuildPointClouds();
-    env.SavePointClouds();
-    rclcpp::sleep_for(std::chrono::milliseconds(1000));
-  }
-  while (!env.robot_info_[0].image_subscriber->image_queue_.empty()){
-    cv::Mat frame;
-    {
-      std::lock_guard<std::mutex> lock(env.robot_info_[0].image_subscriber->image_queue_mutex_);
-      if (!env.robot_info_[0].image_subscriber->image_queue_.empty()) {
-        frame = env.robot_info_[0].image_subscriber->image_queue_.front();
-        env.robot_info_[0].image_subscriber->image_queue_.pop();
-      }
-    }
-    env.robot_info_[0].image_subscriber->video_writer_.write(frame);
-  }
-  env.robot_info_[0].image_subscriber->stop();
 
+  for (int plant_id = 0; plant_id < 15; plant_id++){
+    double platform_pos_x = (plant_id / 3) * 0.225 * 6;
+    double platform_pos_y = (plant_id % 3) * 0.225 * 6;
+    planar_platform.publish_planar_robot(
+      platform_pos_x, platform_pos_y
+    );
+    robot1.load_robot_setpoints(
+      "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_xyz.csv", 
+      "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_rot.csv"
+    );
+    for (int i = 0; i < 40; i+=sample_gap){
+      robot1.setpoint_control(i);
+      rclcpp::sleep_for(std::chrono::milliseconds(2500));    // wait for the robot in UE5 to settle
+      rclcpp::spin_some(node);
+      env.SaveRobotImages();
+      if (reconstruct_point_clouds){
+        env.BuildPointClouds(true);
+        env.SavePointClouds();
+      }
+      env.UpdateLog();
+      
+      rclcpp::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // write the rgb images received to video
+    env.robot_info_[0].WriteVideo();
+
+    robot1.load_robot_setpoints(
+      "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints2_xyz.csv", 
+      "/home/xing2204/Lab/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints2_rot.csv"
+    );
+    for (int i = 0; i < 40; i+=sample_gap){
+      robot1.setpoint_control(i);
+      rclcpp::sleep_for(std::chrono::milliseconds(2500));    // wait for the robot in UE5 to settle
+      rclcpp::spin_some(node);
+      env.SaveRobotImages();
+      if (reconstruct_point_clouds){
+        env.BuildPointClouds(true);
+        env.SavePointClouds();
+      }
+      env.UpdateLog();
+      rclcpp::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    env.robot_info_[0].WriteVideo();
+  }
+  
+
+
+  env.robot_info_[0].image_subscriber->stop();
+  env.SaveLog();
   rclcpp::shutdown();
 
   printf("goodbye world benchbot_xarm6_cpp package\n");

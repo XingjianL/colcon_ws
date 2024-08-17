@@ -8,3 +8,4 @@ src/trac_ik
 *.avi
 *.pcd
 *.ply
+output

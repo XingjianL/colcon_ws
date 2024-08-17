@@ -32,6 +32,7 @@ set(SOURCES
     src/benchbot_xarm6_cpp.cpp
     src/unique_point_cloud.cpp
     src/environment_info.cpp
+    src/planar_robot.cpp
     # add other source files here
 )
 add_executable(benchbot_xarm6_cpp ${SOURCES})
