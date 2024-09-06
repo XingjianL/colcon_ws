@@ -1,4 +1,4 @@
-#include "benchbot_xarm6_cpp/image_subscribe.hpp"
+#include "benchbot_xarm6_stereo/image_subscribe.hpp"
 #include <filesystem>
 //#include "image_subscribe.hpp"
 
@@ -17,16 +17,18 @@ namespace benchbot_xarm6 {
         
         
         sync_sub_color_.subscribe(node_, "/ue5/one/Color");
-        sync_sub_segment_.subscribe(node_, "/ue5/one/Segmentation");
+        sync_sub_color1_.subscribe(node_, "/ue5/one/ColorOne");
+        //sync_sub_segment_.subscribe(node_, "/ue5/one/Segmentation");
         sync_sub_depth_.subscribe(node_, "/ue5/one/Depth");
+        sync_sub_depth1_.subscribe(node_, "/ue5/one/DepthOne");
 
         point_cloud_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("pointcloud", 10);
 
         sync_ = std::make_shared<message_filters::Synchronizer<ApproxTimeSyncPolicy>>(
             ApproxTimeSyncPolicy(5),
-            sync_sub_color_, sync_sub_segment_, sync_sub_depth_
+            sync_sub_color_, sync_sub_color1_, sync_sub_depth_, sync_sub_depth1_
         );
-        sync_->registerCallback(std::bind(&ImageSubscriber::RGBDImageCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        sync_->registerCallback(std::bind(&ImageSubscriber::StereoImageCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
         //sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(0.125));
         video_writer_ = cv::VideoWriter("output.mp4", cv::VideoWriter::fourcc('X', '2', '6', '4'), 30, cv::Size(640, 480));
@@ -118,6 +120,20 @@ namespace benchbot_xarm6 {
         RGBImageCallback(msg_color);
         SegmentImageCallback(msg_segment);
         DepthImageCallback(msg_depth);
+        waiting_msg = false;
+    }
+
+    void ImageSubscriber::StereoImageCallback(
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, 
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_color1, 
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth,
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth1)
+    {
+        RCLCPP_INFO(node_->get_logger(), "StereoImageCallback");
+        cv_img_ = cv_bridge::toCvShare(msg_color, "bgr8")->image.clone();
+        cv_img1_ = cv_bridge::toCvShare(msg_color1, "bgr8")->image.clone();
+        cv_img_depth_ = cv_bridge::toCvShare(msg_depth, "32FC1")->image.clone();
+        cv_img1_depth_ = cv_bridge::toCvShare(msg_depth1, "32FC1")->image.clone();
         waiting_msg = false;
     }
 
@@ -234,9 +250,10 @@ namespace benchbot_xarm6 {
     void ImageSubscriber::save_images(std::string path)
     {
         std::filesystem::create_directories(path);
-        cv::imwrite(path + "/rgb" + std::to_string(capture_count_) + ".png", cv_img_);
-        cv::imwrite(path + "/segment" + std::to_string(capture_count_) + ".png", cv_img_segment_);
-        cv::imwrite(path + "/depth" + std::to_string(capture_count_) + ".exr", cv_img_depth_);
+        cv::imwrite(path + "/rgb_" + std::to_string(capture_count_) + ".png", cv_img_);
+        cv::imwrite(path + "/rgb1_" + std::to_string(capture_count_) + ".png", cv_img1_);
+        cv::imwrite(path + "/depth_" + std::to_string(capture_count_) + ".exr", cv_img_depth_);
+        cv::imwrite(path + "/depth1_" + std::to_string(capture_count_) + ".exr", cv_img1_depth_);
     }
 
     void ImageSubscriber::convert_to_ros_pointcloud(const open3d::geometry::PointCloud &pc, sensor_msgs::msg::PointCloud2 &msg, rclcpp::Time callback_time)

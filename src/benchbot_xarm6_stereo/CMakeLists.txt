@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(benchbot_xarm6_cpp)
+project(benchbot_xarm6_stereo)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -Wunused-parameter)
@@ -35,20 +35,20 @@ set(SOURCES
     src/xarm6_moveit.cpp
     src/csv_parser.cpp
     src/image_subscribe.cpp
-    src/benchbot_xarm6_cpp.cpp
+    src/benchbot_xarm6_stereo.cpp
     src/unique_point_cloud.cpp
     src/environment_info.cpp
     src/planar_robot.cpp
     # add other source files here
 )
-add_executable(benchbot_xarm6_cpp ${SOURCES})
+add_executable(benchbot_xarm6_stereo ${SOURCES})
 
-target_include_directories(benchbot_xarm6_cpp PUBLIC
+target_include_directories(benchbot_xarm6_stereo PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(benchbot_xarm6_cpp PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+target_compile_features(benchbot_xarm6_stereo PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 ament_target_dependencies(
-  benchbot_xarm6_cpp
+  benchbot_xarm6_stereo
   moveit_ros_planning_interface
   rclcpp
   sensor_msgs
@@ -58,10 +58,10 @@ ament_target_dependencies(
   #Open3D
 )
 
-install(TARGETS benchbot_xarm6_cpp
+install(TARGETS benchbot_xarm6_stereo
   DESTINATION lib/${PROJECT_NAME})
 
-target_link_libraries(benchbot_xarm6_cpp Open3D::Open3D)
+target_link_libraries(benchbot_xarm6_stereo Open3D::Open3D)
 
 
 if(BUILD_TESTING)

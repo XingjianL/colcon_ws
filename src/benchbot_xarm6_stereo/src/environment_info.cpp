@@ -1,4 +1,4 @@
-#include "benchbot_xarm6_cpp/environment_info.hpp"
+#include "benchbot_xarm6_stereo/environment_info.hpp"
 //#include "image_subscribe.hpp"
 #include <ctime>
 #include <chrono>
@@ -58,7 +58,7 @@ namespace benchbot_xarm6 {
     }
 
     void EnvironmentInfo::EnvStringCallback(const std_msgs::msg::String::ConstSharedPtr& msg) {
-        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo");
+        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "EnvironmentInfo");
         ParseData(msg->data, robot_info_, plant_info_);
         waiting_msg = false;
     }
@@ -73,11 +73,11 @@ namespace benchbot_xarm6 {
         }
 
         if (result.size() < 2) {
-            RCLCPP_ERROR(rclcpp::get_logger("benchbot_xarm6_cpp"), "Incorrect environment data format on /ue5/SceneInfo! Should only have two lines.");
+            RCLCPP_ERROR(rclcpp::get_logger("benchbot_xarm6_stereo"), "Incorrect environment data format on /ue5/SceneInfo! Should only have two lines.");
             return;
         }
         if (result[0].size() != result[1].size()){
-            RCLCPP_ERROR(rclcpp::get_logger("benchbot_xarm6_cpp"), "Incorrect environment data format on /ue5/SceneInfo! Should have same number of elements in each line.");
+            RCLCPP_ERROR(rclcpp::get_logger("benchbot_xarm6_stereo"), "Incorrect environment data format on /ue5/SceneInfo! Should have same number of elements in each line.");
             return;
         }
 
@@ -100,7 +100,7 @@ namespace benchbot_xarm6 {
                 if(!found){
                     std::vector<std::string> tokens;
                     boost::split(tokens, result[1][i], boost::is_any_of(","), boost::token_compress_off);
-                    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), 
+                    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), 
                         "adding new plant: %s, instance: %d, %d", 
                         result[0][i].c_str(), plant.instance_segmentation_id_g, plant.instance_segmentation_id_b);
                     plant.UpdateLog();
@@ -122,7 +122,7 @@ namespace benchbot_xarm6 {
                 }
                 // if not then add this robot to the vector
                 if(!found){
-                    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "adding new robot: %s", result[0][i].c_str());
+                    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "adding new robot: %s", result[0][i].c_str());
                     robot_info.push_back(robot);
                 }
             }
@@ -146,7 +146,7 @@ namespace benchbot_xarm6 {
     }
 
     void EnvironmentInfo::BuildPointClouds(bool save_intermediate) {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Started");
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "EnvironmentInfo::BuildPointClouds: Started");
         robot_info_[0].image_subscriber->under_recon_ = true;
         pc_build_count_ += 1;
 
@@ -174,7 +174,7 @@ namespace benchbot_xarm6 {
         
         std::string save_intermediate_path = "";
         
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: %f %f", ue5_robot_base[0]/100.0, ue5_robot_base[1]/100.0);
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "EnvironmentInfo::BuildPointClouds: %f %f", ue5_robot_base[0]/100.0, ue5_robot_base[1]/100.0);
         for(auto& plant : plant_info_){
             if (save_intermediate) {
                 save_intermediate_path = "output/pcd/plant_" + std::to_string(creation_time_.seconds()) + "/" +
@@ -192,12 +192,12 @@ namespace benchbot_xarm6 {
         }
         
         robot_info_[0].image_subscriber->under_recon_ = false;
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Finished");
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "EnvironmentInfo::BuildPointClouds: Finished");
         
     }
 
     void EnvironmentInfo::SavePointClouds() {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Started");
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "EnvironmentInfo::SavePointClouds: Started");
         for(auto& plant : plant_info_){
             for (auto& pc : plant.unique_point_clouds) {
                 std::string filepath = "output/pcd/plant_" + std::to_string(creation_time_.seconds()) + "/" +
@@ -207,7 +207,7 @@ namespace benchbot_xarm6 {
                 pc.savePointCloud(filepath);
             }
         }
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Finished");
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "EnvironmentInfo::SavePointClouds: Finished");
     }
 
     void EnvironmentInfo::UpdateLog(){
@@ -338,7 +338,7 @@ namespace benchbot_xarm6 {
 
     void RobotInfo::UpdateRobotStatus(const std::string &data){
         ParseData(data);
-        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "RobotInfo::UpdateRobotStatus: Finished");
+        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "RobotInfo::UpdateRobotStatus: Finished");
     }
 
     void RobotInfo::UpdateLog(){
@@ -348,14 +348,14 @@ namespace benchbot_xarm6 {
         csv_data += std::to_string(image_subscriber->capture_count_);
         csv_data += ",";
         double base_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "%s", base_transforms.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "%s", base_transforms.c_str());
         ParseUE5TransformString(base_transforms, base_transform_arr);
         for (auto element : base_transform_arr){
             csv_data += std::to_string(element);
             csv_data += ",";
         }
         double cam_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "%s", camera_transforms.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_stereo"), "%s", camera_transforms.c_str());
         ParseUE5TransformString(camera_transforms, cam_transform_arr);
         for (auto element : cam_transform_arr){
             csv_data += std::to_string(element);

@@ -23,7 +23,7 @@
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 
 
-#include "benchbot_xarm6_cpp/unique_point_cloud.hpp"
+#include "benchbot_xarm6_stereo/unique_point_cloud.hpp"
 
 namespace benchbot_xarm6
 {
@@ -56,6 +56,8 @@ namespace benchbot_xarm6
         cv::Mat cv_img_;
         cv::Mat cv_img_segment_;
         cv::Mat cv_img_depth_;
+        cv::Mat cv_img1_;
+        cv::Mat cv_img1_depth_;
 
         void waiting_for_sync();
         bool under_recon_;
@@ -85,12 +87,20 @@ namespace benchbot_xarm6
         //std::vector<benchbot_xarm6::UniquePointCloud> o3d_pc_vector_;
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_pub_;
 
+        void StereoImageCallback(
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, 
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_color1, 
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth,
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth1);
         void RGBDImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, const sensor_msgs::msg::Image::ConstSharedPtr& msg_segment, const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth);
 
         message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_color_;
-        message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_segment_;
+        message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_color1_;
+        //message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_segment_;
         message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_depth_;
-        typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image, sensor_msgs::msg::Image> ApproxTimeSyncPolicy;
+        message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_depth1_;
+
+        typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image, sensor_msgs::msg::Image, sensor_msgs::msg::Image> ApproxTimeSyncPolicy;
         std::shared_ptr<message_filters::Synchronizer<ApproxTimeSyncPolicy>> sync_;
 
         std::thread executor_thread_;

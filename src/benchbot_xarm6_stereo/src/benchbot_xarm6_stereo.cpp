@@ -1,19 +1,19 @@
 #include <cstdio>
 #include <rclcpp/rclcpp.hpp>
 #include <moveit/move_group_interface/move_group_interface.h>
-#include "benchbot_xarm6_cpp/xarm6_moveit.hpp"
-#include "benchbot_xarm6_cpp/image_subscribe.hpp"
-#include "benchbot_xarm6_cpp/environment_info.hpp"
-#include "benchbot_xarm6_cpp/planar_robot.hpp"
+#include "benchbot_xarm6_stereo/xarm6_moveit.hpp"
+#include "benchbot_xarm6_stereo/image_subscribe.hpp"
+#include "benchbot_xarm6_stereo/environment_info.hpp"
+#include "benchbot_xarm6_stereo/planar_robot.hpp"
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto const logger = rclcpp::get_logger("benchbot_xarm6_cpp");
+  auto const logger = rclcpp::get_logger("benchbot_xarm6_stereo");
 
-  printf("hello world benchbot_xarm6_cpp package\n");
+  printf("hello world benchbot_xarm6_stereo package\n");
 
-  bool reconstruct_point_clouds = true;
-  int sample_gap = 8;
+  bool reconstruct_point_clouds = false;
+  int sample_gap = 4;
   for (int i = 0; i < argc; i++)
   {
     std::string arg = argv[i];
@@ -26,7 +26,7 @@ int main(int argc, char ** argv)
   }
 
   auto const node = std::make_shared<rclcpp::Node>(
-    "benchbot_xarm6_cpp",
+    "benchbot_xarm6_stereo",
     rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
   );
 
@@ -42,8 +42,8 @@ int main(int argc, char ** argv)
 
   
   robot1.load_robot_setpoints(
-    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_xyz.csv", 
-    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_rot.csv"
+    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_stereo/setpoints/setpoints1_xyz.csv", 
+    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_stereo/setpoints/setpoints1_rot.csv"
   );
   for (int i = 0; i < 40; i+=sample_gap){
     robot1.setpoint_control(i);
@@ -55,7 +55,7 @@ int main(int argc, char ** argv)
         platform_pos_x, platform_pos_y
       );
       env.EnvPublishCommand("Test:1");
-      rclcpp::sleep_for(std::chrono::milliseconds(1000));
+      rclcpp::sleep_for(std::chrono::milliseconds(1500));
       env.waiting_for_sync();
       env.robot_info_[0].image_subscriber->waiting_for_sync();
       rclcpp::spin_some(node);
@@ -76,8 +76,8 @@ int main(int argc, char ** argv)
   env.robot_info_[0].WriteVideo();
 
   robot1.load_robot_setpoints(
-    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints2_xyz.csv", 
-    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints2_rot.csv"
+    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_stereo/setpoints/setpoints2_xyz.csv", 
+    "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_stereo/setpoints/setpoints2_rot.csv"
   );
   for (int i = 0; i < 40; i+=sample_gap){
     robot1.setpoint_control(i);
@@ -88,7 +88,7 @@ int main(int argc, char ** argv)
       planar_platform.publish_planar_robot(
         platform_pos_x, platform_pos_y
       );
-      rclcpp::sleep_for(std::chrono::milliseconds(1000));
+      rclcpp::sleep_for(std::chrono::milliseconds(1500));
       env.waiting_for_sync();
       env.robot_info_[0].image_subscriber->waiting_for_sync();
       env.EnvPublishCommand("Test:1");
@@ -114,7 +114,7 @@ int main(int argc, char ** argv)
   rclcpp::sleep_for(std::chrono::milliseconds(2000));
   rclcpp::shutdown();
 
-  printf("goodbye world benchbot_xarm6_cpp package\n");
+  printf("goodbye world benchbot_xarm6_stereo package\n");
 
   return 0;
 }

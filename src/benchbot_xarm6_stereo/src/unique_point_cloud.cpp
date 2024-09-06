@@ -1,4 +1,4 @@
-#include "benchbot_xarm6_cpp/unique_point_cloud.hpp"
+#include "benchbot_xarm6_stereo/unique_point_cloud.hpp"
 #include <opencv2/opencv.hpp>
 #include "open3d/Open3D.h"
 #include <filesystem>

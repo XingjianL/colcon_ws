@@ -17,8 +17,8 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 
-#include "benchbot_xarm6_cpp/unique_point_cloud.hpp"
-#include "benchbot_xarm6_cpp/image_subscribe.hpp"
+#include "benchbot_xarm6_stereo/unique_point_cloud.hpp"
+#include "benchbot_xarm6_stereo/image_subscribe.hpp"
 
 namespace benchbot_xarm6
 {
