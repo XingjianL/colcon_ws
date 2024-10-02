@@ -3,6 +3,7 @@
 #include <ctime>
 #include <chrono>
 #include <filesystem>
+#include <cmath>
 
 namespace benchbot_xarm6 {
 
@@ -210,6 +211,48 @@ namespace benchbot_xarm6 {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Finished");
     }
 
+    void EnvironmentInfo::PredictPointCloud(const std::shared_ptr<NBV>& nbv_) {
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Started");
+        int closest_plant = 0;
+        double closest_dist = 1e9;
+        double base_transform[9] = {0,0,0,0,0,0,0,0,0};
+        ParseUE5TransformString(robot_info_[0].base_transforms, base_transform);
+        
+        for (size_t i = 0; i < plant_info_.size(); i++){
+            auto dist = plant_info_[i].CalcDistance(base_transform[0],base_transform[1],base_transform[2]);
+            if (dist < closest_dist) {
+                closest_dist = dist;
+                closest_plant = i;
+            }
+        }
+
+        for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
+            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial");
+            auto pcd_copy = std::make_shared<open3d::geometry::PointCloud>(pc.o3d_pc->points_);
+            Eigen::Vector3d translation_vector(
+                base_transform[0]/100,
+                base_transform[1]/100, 
+                -1.1);
+            pcd_copy->Translate(translation_vector);
+            auto [filtered_pcd, inlier_ind] = pcd_copy->RemoveRadiusOutliers(16, 0.05);
+            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Translate %f %f %f", translation_vector.x(), translation_vector.y(), translation_vector.z());
+            
+            Eigen::Vector3d mean(0,0,0);
+            for (const auto& point: filtered_pcd->points_){
+                mean += point;
+            }
+            mean /= static_cast<double>(filtered_pcd->points_.size());
+            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: mean %f %f %f", mean.x(), mean.y(), mean.z());
+
+            if (filtered_pcd->points_.size() > 2000){
+                filtered_pcd = filtered_pcd->FarthestPointDownSample(2000);
+            }
+            nbv_->publish_point_cloud(filtered_pcd);
+        }
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Finished");
+
+    }
+
     void EnvironmentInfo::UpdateLog(){
         for(auto& robot : robot_info_){
             robot.UpdateLog();
@@ -296,6 +339,15 @@ namespace benchbot_xarm6 {
         csv_data += ",";
         csv_data += std::to_string(instance_segmentation_id_b);
         csv_data += "\n";
+    }
+
+    double PlantInfo::CalcDistance(double base_t_x, double base_t_y, double base_t_z) {
+        double plant_transforms[9] = {0,0,0,0,0,0,0,0,0};
+        ParseUE5TransformString(transforms, plant_transforms);
+        double dist = sqrt( pow(plant_transforms[0]-base_t_x,2) + 
+                            pow(plant_transforms[1]-base_t_y,2) +
+                            pow(plant_transforms[2]-base_t_z,2));
+        return dist;
     }
 
     //MARK: RobotInfo

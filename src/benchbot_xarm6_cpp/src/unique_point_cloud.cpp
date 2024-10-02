@@ -118,7 +118,7 @@ namespace benchbot_xarm6
         return true;
     }
 
-    void UniquePointCloud::savePointCloud(std::string& filepath)
+    void UniquePointCloud::savePointCloud(const std::string& filepath)
     {
         if (o3d_pc->points_.size() < 3000) {
             //std::cout << "not enough points to save: " << filename_ << " " << o3d_pc->points_.size() << std::endl;

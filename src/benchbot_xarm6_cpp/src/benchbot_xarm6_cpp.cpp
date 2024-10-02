@@ -25,14 +25,16 @@ int main(int argc, char ** argv)
     }
   }
 
-  auto const node = std::make_shared<rclcpp::Node>(
+  auto const env_node = std::make_shared<rclcpp::Node>(
     "benchbot_xarm6_cpp",
     rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
   );
+  std::string nbv_node_name = "benchbot_nbv";
+  std::shared_ptr<benchbot_xarm6::NBV> nbv = std::make_shared<benchbot_xarm6::NBV>(nbv_node_name);
 
-  benchbot_xarm6::EnvironmentInfo env(node);            // UE5 environment parser
-  benchbot_xarm6::XARM6MoveIt robot1("xarm6", node);    // MoveIt control
-  benchbot_xarm6::PlanarRobot planar_platform(node);    // planar platform control
+  benchbot_xarm6::EnvironmentInfo env(env_node);            // UE5 environment parser
+  benchbot_xarm6::XARM6MoveIt robot1("xarm6", env_node);    // MoveIt control
+  benchbot_xarm6::PlanarRobot planar_platform(env_node);    // planar platform control
   std::string cam_node_name = "benchbot_xarm6_camera";
   env.waiting_for_sync();
   env.robot_info_[0].ConfigCamera(cam_node_name);
@@ -48,7 +50,7 @@ int main(int argc, char ** argv)
   for (int i = 0; i < 40; i+=sample_gap){
     robot1.setpoint_control(i);
     rclcpp::sleep_for(std::chrono::milliseconds(2500)); // wait for the robot in UE5 to settle
-    for (int plant_id = 0; plant_id < 15; plant_id++){
+    for (int plant_id = 0; plant_id < 1; plant_id++){
       double platform_pos_x = (plant_id / 3) * 0.225 * 6;
       double platform_pos_y = (plant_id % 3) * 0.225 * 6;
       planar_platform.publish_planar_robot(
@@ -58,11 +60,12 @@ int main(int argc, char ** argv)
       rclcpp::sleep_for(std::chrono::milliseconds(1000));
       env.waiting_for_sync();
       env.robot_info_[0].image_subscriber->waiting_for_sync();
-      rclcpp::spin_some(node);
+      rclcpp::spin_some(env_node);
     
       if (reconstruct_point_clouds){
         env.BuildPointClouds(true);
         env.SavePointClouds();
+        env.PredictPointCloud(nbv);
       } else {
         env.SaveRobotImages();
       }
@@ -82,7 +85,7 @@ int main(int argc, char ** argv)
   for (int i = 0; i < 40; i+=sample_gap){
     robot1.setpoint_control(i);
     rclcpp::sleep_for(std::chrono::milliseconds(2500));
-    for (int plant_id = 0; plant_id < 15; plant_id++){
+    for (int plant_id = 0; plant_id < 1; plant_id++){
       double platform_pos_x = (plant_id / 3) * 0.225 * 6;
       double platform_pos_y = (plant_id % 3) * 0.225 * 6;
       planar_platform.publish_planar_robot(
@@ -93,10 +96,11 @@ int main(int argc, char ** argv)
       env.robot_info_[0].image_subscriber->waiting_for_sync();
       env.EnvPublishCommand("Test:1");
           // wait for the robot in UE5 to settle
-      rclcpp::spin_some(node);
+      rclcpp::spin_some(env_node);
       if (reconstruct_point_clouds){
         env.BuildPointClouds(true);
         env.SavePointClouds();
+        env.PredictPointCloud(nbv);
       } else {
         env.SaveRobotImages();
       }

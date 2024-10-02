@@ -1,0 +1,6 @@
+from .build import build_dataset_from_cfg
+import pointr_minimal.datasets.KITTIDataset
+import pointr_minimal.datasets.PCNDataset
+import pointr_minimal.datasets.ShapeNet55Dataset
+import pointr_minimal.datasets.Completion3DDataset
+import pointr_minimal.datasets.Projected_ShapeNet

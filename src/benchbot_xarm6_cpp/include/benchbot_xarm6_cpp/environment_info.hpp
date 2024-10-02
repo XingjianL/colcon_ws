@@ -19,6 +19,8 @@
 
 #include "benchbot_xarm6_cpp/unique_point_cloud.hpp"
 #include "benchbot_xarm6_cpp/image_subscribe.hpp"
+#include "benchbot_xarm6_cpp/nbv.hpp"
+
 
 namespace benchbot_xarm6
 {
@@ -45,6 +47,8 @@ namespace benchbot_xarm6
         std::string csv_header;
         std::string csv_data;
         void UpdateLog();
+
+        double CalcDistance(double base_t_x, double base_t_y, double base_t_z);
     };
     struct RobotInfo
     {
@@ -95,12 +99,14 @@ namespace benchbot_xarm6
         void clear();
         void BuildPointClouds(bool save_intermediate);
         void SavePointClouds();
+        void PredictPointCloud(const std::shared_ptr<NBV>& nbv_);
 
         void UpdateLog();
         void SaveLog();
 
         void SaveRobotImages();        
         void EnvPublishCommand(const std::string& command);
+
         open3d::visualization::Visualizer visualizer;
     private:
         const std::string PLANTMARKER = "Plant";

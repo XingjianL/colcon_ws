@@ -23,7 +23,7 @@ namespace benchbot_xarm6
             const open3d::camera::PinholeCameraIntrinsic &intrinsics_,
             std::string& save_intermediate,
             open3d::visualization::Visualizer &visualizer);
-        void savePointCloud( std::string& filepath);
+        void savePointCloud(const std::string& filepath);
 
     private:
         bool appendPointCloud(std::shared_ptr<open3d::geometry::PointCloud> pc, std::tuple<uint8_t, uint8_t, uint8_t> color);
