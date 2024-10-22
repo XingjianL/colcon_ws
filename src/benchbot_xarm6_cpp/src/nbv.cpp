@@ -12,7 +12,7 @@ namespace benchbot_xarm6 {
             "/predicted_pcd", 10, std::bind(&NBV::PredictedCallback, this, std::placeholders::_1)
         );
         nbv_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "partial_pcd",10
+            "/partial_pcd",10
         );
     }
     NBV::~NBV() {

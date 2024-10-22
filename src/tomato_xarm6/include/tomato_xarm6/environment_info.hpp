@@ -72,7 +72,7 @@ namespace tomato_xarm6
         
         bool operator==(const RobotInfo& rhs) const;
         
-        void ConfigCamera(std::string &node_name);
+        void ConfigCamera(std::string &node_name, bool capture_both);
         void ParseData(const std::string& data);
 
         std::string csv_header;

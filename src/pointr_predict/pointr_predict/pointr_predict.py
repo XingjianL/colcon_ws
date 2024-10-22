@@ -12,13 +12,14 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2, PointField
 from sensor_msgs_py import point_cloud2
+from std_msgs.msg import Header
 import sys
 
 class AdaPoinTrModel():
     def __init__(self) -> None:
         self.config = cfg_from_yaml_file("/home/lxianglabxing/githubrepo/PoinTr/cfgs/PCN_models/AdaPoinTr_Plant_Large.yaml")
         self.base_model = builder.model_builder(self.config.model)
-        builder.load_model(self.base_model, "/home/lxianglabxing/githubrepo/PoinTr/experiments/AdaPoinTr_Plant_Large/PCN_models/plant_large_ada/ckpt-best.pth")
+        builder.load_model(self.base_model, "/home/lxianglabxing/githubrepo/PoinTr/experiments/AdaPoinTr_Plant_Large/PCN_models/shifted_plants/ckpt-best.pth")
         self.base_model.cuda()
         self.base_model.eval()
         print(sum(p.numel() for p in self.base_model.parameters()))
@@ -53,7 +54,10 @@ class AdaPoinTrModel():
         dense_points = ret[-1].squeeze(0).detach().cpu().numpy()
 
         if save_path != None:
+            input_pcd = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(pcd))
             dense_pcd = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(dense_points))
+            #pred_path = os.path.join(*[save_path,"pred.pcd"])
+            open3d.io.write_point_cloud(f"{save_path}input.pcd", input_pcd)
             open3d.io.write_point_cloud(f"{save_path}pred.pcd", dense_pcd)
 
         return dense_points
@@ -74,12 +78,13 @@ class PartialPCDPredictorNode(Node):
         )
         self.predictor_model = predictor_model
         self.subscription
+        self.received_pcd = 0
     def callback(self, msg: PointCloud2):
         self.get_logger().info("Received partial point cloud")
         pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1,msg.point_step)
         xyz = pc_data[:,0:12].view(dtype=np.float32).reshape(-1,3)
-        pred = self.predictor_model.inference_single_pcd(xyz,"/home/lxianglabxing/colcon_ws/output/pcd/")
-
+        pred = self.predictor_model.inference_single_pcd(xyz,f"/home/lxianglabxing/colcon_ws/output/pcd/{self.received_pcd}")
+        self.received_pcd += 1
         
         fields = [
             PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
@@ -87,10 +92,11 @@ class PartialPCDPredictorNode(Node):
             PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1)
         ]
         point_list = pred.tolist()        
-        header = self.get_clock().now().to_msg()
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
 
-        #msg = point_cloud2.create_cloud(header, fields, point_list)
-        #self.publisher.publish(msg)
+        msg = point_cloud2.create_cloud(header, fields, point_list)
+        self.publisher.publish(msg)
         self.get_logger().info("Sent predicted point cloud")
         pass
 

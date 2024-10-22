@@ -36,10 +36,11 @@ int main(int argc, char ** argv)
   benchbot_xarm6::XARM6MoveIt robot1("xarm6", env_node);    // MoveIt control
   benchbot_xarm6::PlanarRobot planar_platform(env_node);    // planar platform control
   std::string cam_node_name = "benchbot_xarm6_camera";
+  env.EnvPublishCommand("GetSceneInfo:0");
   env.waiting_for_sync();
   env.robot_info_[0].ConfigCamera(cam_node_name);
   env.robot_info_[0].image_subscriber->start();
-  
+  env.EnvPublishCommand("GetSceneInfo:0");
   RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
 
   

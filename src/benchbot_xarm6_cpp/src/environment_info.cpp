@@ -52,14 +52,15 @@ namespace benchbot_xarm6 {
         waiting_msg = true;
         while(waiting_msg){
             RCLCPP_INFO(node_->get_logger(), "waiting for sync - Environment");
+            EnvPublishCommand("GetSceneInfo:0");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             rclcpp::spin_some(node_);
         }
         RCLCPP_INFO(node_->get_logger(), "got Environment");
     }
-
+    // MARK: env callback
     void EnvironmentInfo::EnvStringCallback(const std_msgs::msg::String::ConstSharedPtr& msg) {
-        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo");
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo");
         ParseData(msg->data, robot_info_, plant_info_);
         waiting_msg = false;
     }
@@ -225,15 +226,27 @@ namespace benchbot_xarm6 {
                 closest_plant = i;
             }
         }
-
+        
+        
         for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial");
             auto pcd_copy = std::make_shared<open3d::geometry::PointCloud>(pc.o3d_pc->points_);
             Eigen::Vector3d translation_vector(
-                base_transform[0]/100,
-                base_transform[1]/100, 
-                -1.1);
+               base_transform[0]/100,
+               base_transform[1]/100, 
+               -1.1);
+            // Eigen::Vector3d translation_vector(
+            //     0,
+            //     0, 
+            //     -1.1);
             pcd_copy->Translate(translation_vector);
+            std::string filepath = "output/pcd/";
+            std::filesystem::path dir_path = filepath;
+            std::filesystem::create_directories(dir_path);
+            open3d::io::WritePointCloudOption o3d_option(true);
+            std::string filename_ = std::to_string(pc_build_count_-1) + "temp.pcd";
+            open3d::io::WritePointCloud(filepath + filename_, *pcd_copy, o3d_option);
+
             auto [filtered_pcd, inlier_ind] = pcd_copy->RemoveRadiusOutliers(16, 0.05);
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Translate %f %f %f", translation_vector.x(), translation_vector.y(), translation_vector.z());
             

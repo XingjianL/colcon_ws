@@ -30,7 +30,7 @@ namespace tomato_xarm6
     class ImageSubscriber
     {
     public:
-        ImageSubscriber(std::string &node_name, double camera_FOV, int width, int height);
+        ImageSubscriber(std::string &node_name, double camera_FOV, int width, int height, bool capture_both);
         ~ImageSubscriber();
 
         void start();
@@ -61,7 +61,9 @@ namespace tomato_xarm6
 
         void waiting_for_sync();
         bool under_recon_;
-        bool waiting_msg = true;
+        bool capture_both_ = false;
+        bool waiting_msg_rgbd = true;
+        bool waiting_msg_stereo = true;
         std::mutex waiting_msg_mutex;
         
     private:
@@ -92,20 +94,31 @@ namespace tomato_xarm6
             const sensor_msgs::msg::Image::ConstSharedPtr& msg_color1, 
             const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth,
             const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth1);
-        void RGBDImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, const sensor_msgs::msg::Image::ConstSharedPtr& msg_segment, const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth);
+
+        void RGBDImageCallback(
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_color, 
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_segment, 
+            const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth);
 
         message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_color_;
-        //message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_color1_;
+        message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_color1_;
         message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_segment_;
         message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_depth_;
-        //message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_depth1_;
+        message_filters::Subscriber<sensor_msgs::msg::Image> sync_sub_depth1_;
 
         // change the template to number of sync_sub above
         typedef message_filters::sync_policies::ApproximateTime
         <   sensor_msgs::msg::Image, 
             sensor_msgs::msg::Image, 
-            sensor_msgs::msg::Image> ApproxTimeSyncPolicy;
-        std::shared_ptr<message_filters::Synchronizer<ApproxTimeSyncPolicy>> sync_;
+            sensor_msgs::msg::Image,
+            sensor_msgs::msg::Image> ApproxTimeSyncPolicyStereo;
+        std::shared_ptr<message_filters::Synchronizer<ApproxTimeSyncPolicyStereo>> stereo_sync_;
+        
+        typedef message_filters::sync_policies::ApproximateTime
+        <   sensor_msgs::msg::Image, 
+            sensor_msgs::msg::Image, 
+            sensor_msgs::msg::Image> ApproxTimeSyncPolicyRGBD;
+        std::shared_ptr<message_filters::Synchronizer<ApproxTimeSyncPolicyRGBD>> rgbd_sync_;
 
         std::thread executor_thread_;
         rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;

@@ -77,7 +77,7 @@ def launch_setup(context, *args, **kwargs):
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        output="log",
+        output="screen",
         arguments=["-d", rviz_config_file],
         parameters=[
             moveit_config.robot_description,
@@ -93,7 +93,7 @@ def launch_setup(context, *args, **kwargs):
         package="tf2_ros",
         executable="static_transform_publisher",
         name="static_transform_publisher",
-        output="log",
+        output="screen",
         arguments=["--frame-id", "world", "--child-frame-id", "base_link"],
     )
 
@@ -102,7 +102,7 @@ def launch_setup(context, *args, **kwargs):
         package="robot_state_publisher",
         executable="robot_state_publisher",
         name="robot_state_publisher",
-        output="both",
+        output="screen",
         parameters=[moveit_config.robot_description],
     )
 
@@ -120,7 +120,7 @@ def launch_setup(context, *args, **kwargs):
         remappings=[
             ("/controller_manager/robot_description", "/robot_description"),
         ],
-        output="both",
+        output="screen",
     )
 
     joint_state_broadcaster_spawner = Node(

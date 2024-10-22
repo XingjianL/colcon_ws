@@ -50,6 +50,7 @@ namespace tomato_xarm6 {
     void EnvironmentInfo::waiting_for_sync(){
         waiting_msg = true;
         while(waiting_msg){
+            EnvPublishCommand("GetSceneInfo:0");
             RCLCPP_INFO(node_->get_logger(), "waiting for sync - Environment");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             rclcpp::spin_some(node_);
@@ -246,6 +247,7 @@ namespace tomato_xarm6 {
     void EnvironmentInfo::SaveRobotImages()
     {
         robot_info_[0].image_subscriber->capture_count_ += 1;
+        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "Saving images");
         robot_info_[0].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
     }
 
@@ -273,8 +275,8 @@ namespace tomato_xarm6 {
         plant_variant = tokens[3];
         plant_name = tokens[4];
         
-        instance_segmentation_id_g = static_cast<uint8_t>(std::stof(tokens[3])+0.1);//static_cast<uint8_t>( 255.0 * std::stof(tokens[3])+0.5);
-        instance_segmentation_id_b = static_cast<uint8_t>(std::stof(tokens[4])+0.1);
+        instance_segmentation_id_g = static_cast<uint8_t>(std::stof(tokens[5])+0.1);//static_cast<uint8_t>( 255.0 * std::stof(tokens[3])+0.5);
+        instance_segmentation_id_b = static_cast<uint8_t>(std::stof(tokens[6])+0.1);
         
         leaves = tokens[7];
 
@@ -334,8 +336,8 @@ namespace tomato_xarm6 {
         camera_quaternion = tokens[8];
     }
 
-    void RobotInfo::ConfigCamera(std::string &node_name) {
-        image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height);
+    void RobotInfo::ConfigCamera(std::string &node_name, bool capture_both) {
+        image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height, capture_both);
         RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "FOV: %f, width: %d, height: %d", camera_FOV, camera_width, camera_height);
 
         //image_subscriber->update_intrinsics(camera_FOV, camera_width, camera_height);
