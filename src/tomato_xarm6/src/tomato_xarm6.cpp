@@ -18,9 +18,12 @@ int main(int argc, char ** argv)
   int sample_gap = 4;
 
   bool reset_time = false;
-  int temperature = 3500;
+  std::string temperature = "3500,40,-4"; // temperature, intensity, exposure
   bool capture_both = false;
   unsigned int seed = 0;
+  std::string filtered_disease = "";
+  std::string split_height_leaf = "";
+  std::string leaf_preprocess = "";
   for (int i = 1; i < argc; i++)
   {
     std::string arg = argv[i];
@@ -29,7 +32,7 @@ int main(int argc, char ** argv)
       reset_time = true;
     }
     if (arg == "--light-temp" && i + 1 < argc) {
-      temperature = std::stoi(argv[i+1]);
+      temperature = argv[i+1];
       ++i;
     }
     if (arg == "--both") {
@@ -37,6 +40,18 @@ int main(int argc, char ** argv)
     }
     if (arg == "--seed" && i + 1 < argc) {
       seed = std::stoi(argv[i+1]);
+      ++i;
+    }
+    if (arg == "--disease-filter" && i + 1 < argc){
+      filtered_disease = argv[i+1];
+      ++i;
+    }
+    if (arg == "--split-height-leaf" && i+1<argc){
+      split_height_leaf = argv[i+1];
+      ++i;
+    }
+    if (arg=="--preprocess" && i+1<argc){
+      leaf_preprocess = argv[i+1];
       ++i;
     }
   }
@@ -53,14 +68,19 @@ int main(int argc, char ** argv)
   //tomato_xarm6::XARM6MoveIt robot1("xarm6", node);    // MoveIt control
   tomato_xarm6::PlanarRobot planar_platform(node);    // planar platform control
   std::string cam_node_name = "tomato_xarm6_camera";
+  rclcpp::sleep_for(std::chrono::milliseconds(5000));
+  if (reset_time) {
+    env.EnvPublishCommand("TimeIncr:1:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PCGSeedIncr:1");
+  } else {
+    env.EnvPublishCommand("TimeIncr:0:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PCGSeedIncr:1");
+  }
+  rclcpp::sleep_for(std::chrono::milliseconds(10000));
+  env.waiting_for_sync();
   env.waiting_for_sync();
   env.robot_info_[0].ConfigCamera(cam_node_name, capture_both);
   env.robot_info_[0].image_subscriber->start();
-  if (reset_time) {
-    env.EnvPublishCommand("TimeIncr:1:LightSet:"+std::to_string(temperature));
-  } else {
-    env.EnvPublishCommand("TimeIncr:0:LightSet:"+std::to_string(temperature));
-  }
+  
+  //env.waiting_for_sync();
   RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
 
   
@@ -71,12 +91,12 @@ int main(int argc, char ** argv)
   for (int i = 0; i < 1; i+=sample_gap){
     //robot1.setpoint_control(i);
     rclcpp::sleep_for(std::chrono::milliseconds(1000)); // wait for the robot in UE5 to settle
-    for (int plant_id_x = 1; plant_id_x < 19; plant_id_x++){
+    for (int plant_id_x = 1; plant_id_x < 19; plant_id_x++){ // 19
       double platform_pos_x = 0.5 * plant_id_x;//(plant_id / 3) * 0.225 * 6; 1.0 -> 19.0
-      for (int plant_id_y = 1; plant_id_y < 7; plant_id_y++){
+      for (int plant_id_y = 1; plant_id_y < 7; plant_id_y++){ // 7
         double platform_pos_y = 2.0 * plant_id_y;//(plant_id % 3) * 0.225 * 6; 2.0 -2.0-> 12.0 (14.0 -2.0-> 4.0)
         planar_platform.publish_planar_robot(
-          platform_pos_x + distribution(randgen), platform_pos_y + distribution(randgen), 1.00 + distribution(randgen)
+          platform_pos_x + distribution(randgen), platform_pos_y + distribution(randgen), 1.00 + distribution(randgen), M_PI / 18 * 20 * distribution(randgen)
         );
         //env.robot_info_[0].image_subscriber->waiting_for_sync();
         //rclcpp::sleep_for(std::chrono::milliseconds(3500));
@@ -104,8 +124,8 @@ int main(int argc, char ** argv)
   env.robot_info_[0].image_subscriber->stop();
   env.SaveLog();
 
-  env.EnvPublishCommand("PCGSeedIncr:1");
-  rclcpp::sleep_for(std::chrono::milliseconds(2000));
+  //env.EnvPublishCommand("PCGSeedIncr:1");
+  rclcpp::sleep_for(std::chrono::milliseconds(1000));
   rclcpp::shutdown();
 
   printf("goodbye world tomato_xarm6 package\n");

@@ -206,7 +206,7 @@ namespace tomato_xarm6 {
             (!capture_both_ && (waiting_msg_rgbd && waiting_msg_stereo))){
             RCLCPP_INFO(node_->get_logger(), "waiting for sync - Image");
             lock.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             //executor_->spin_some();
             lock.lock();
         }

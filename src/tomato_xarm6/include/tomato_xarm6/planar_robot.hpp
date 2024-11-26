@@ -13,7 +13,7 @@ namespace tomato_xarm6
         PlanarRobot(rclcpp::Node::SharedPtr node);
         ~PlanarRobot();
 
-        void publish_planar_robot(double x, double y, double z);
+        void publish_planar_robot(double x, double y, double z, double rand_rot);
     private:
         rclcpp::Node::SharedPtr node_;
         rclcpp::Publisher<geometry_msgs::msg::Transform>::SharedPtr publisher_;
