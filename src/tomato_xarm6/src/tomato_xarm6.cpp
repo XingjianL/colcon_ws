@@ -24,6 +24,7 @@ int main(int argc, char ** argv)
   bool reconstruct_point_clouds = false;
   int sample_gap = 4;
 
+  // default arguments
   bool reset_time = false;
   std::string temperature = "3500,40,-4"; // temperature, intensity, exposure
   bool capture_both = false;
@@ -31,6 +32,9 @@ int main(int argc, char ** argv)
   std::string filtered_disease = "";
   std::string split_height_leaf = "";
   std::string leaf_preprocess = "";
+  std::string percent_healthy = "0.5";
+
+  // add arguments here (see automation.sh for example usages)
   for (int i = 1; i < argc; i++)
   {
     std::string arg = argv[i];
@@ -61,6 +65,10 @@ int main(int argc, char ** argv)
       leaf_preprocess = argv[i+1];
       ++i;
     }
+    if (arg=="--percent-healthy" && i+1 < argc) {
+      percent_healthy = argv[i+1];
+      ++i;
+    }
   }
   std::mt19937 randgen(seed);
   std::uniform_real_distribution<double> distribution(-0.05, 0.05);
@@ -81,9 +89,9 @@ int main(int argc, char ** argv)
   std::string cam_node_name = "tomato_xarm6_camera";
   rclcpp::sleep_for(std::chrono::milliseconds(5000));
   if (reset_time) {
-    env.EnvPublishCommand("TimeIncr:1:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PCGSeedIncr:1");
+    env.EnvPublishCommand("TimeIncr:1:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PercentHealthy:"+percent_healthy+":PCGSeedIncr:1");
   } else {
-    env.EnvPublishCommand("TimeIncr:0:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PCGSeedIncr:1");
+    env.EnvPublishCommand("TimeIncr:0:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PercentHealthy:"+percent_healthy+":PCGSeedIncr:1");
   }
   rclcpp::sleep_for(std::chrono::milliseconds(10000));
   env.waiting_for_sync();
@@ -98,13 +106,15 @@ int main(int argc, char ** argv)
   //env.waiting_for_sync();
   RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
 
-  
-  // robot1.load_robot_setpoints(
+  // Sample setpoints from csv (if not using the argument)
+  // auto benchbot_setpoints_ = tomato_xarm6::read_robot_setpoints(
   //   "/home/lxianglabxing/colcon_ws/src/tomato_xarm6/setpoints/setpoints1_xyz.csv", 
-  //   "/home/lxianglabxing/colcon_ws/src/tomato_xarm6/setpoints/setpoints1_rot.csv"
-  // );
+  //   "/home/lxianglabxing/colcon_ws/src/tomato_xarm6/setpoints/setpoints1_rot.csv");
+  // auto setpoint = benchbot_setpoints_[0];
+  // RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "loaded setpoint: %f, %f, %f, %f, %f, %f", setpoint.x, setpoint.y, setpoint.z, setpoint.roll, setpoint.pitch, setpoint.yaw);
+
+
   for (int i = 0; i < 1; i+=sample_gap){
-    //robot1.setpoint_control(i);
     rclcpp::sleep_for(std::chrono::milliseconds(1000)); // wait for the robot in UE5 to settle
     for (int plant_id_x = 1; plant_id_x < 10; plant_id_x++){ // 19
       double platform_pos_x = 1.0 * plant_id_x;//(plant_id / 3) * 0.225 * 6; 1.0 -> 19.0
@@ -123,18 +133,20 @@ int main(int argc, char ** argv)
           {platform_pos_x * 50, platform_pos_y * 100}
         );
         RCLCPP_INFO(logger, "set benchbot pos");
+
         // spider set position (only planar, x,y,constant,constant)
         spider_platform.set_planar_targets(
           150 + platform_pos_x*10, 350, 0, 0
         );
+        RCLCPP_INFO(logger, "set spider pos");
 
         // husky set position
-        RCLCPP_INFO(logger, "set spider pos");
         husky_platform.set_planar_targets(
           platform_pos_x * 100, 525, 0, 0
         );
         RCLCPP_INFO(logger, "set husky pos");
         
+        // sync simulation environment
         rclcpp::sleep_for(std::chrono::milliseconds(1000));
         env.waiting_for_sync();
         for (size_t i = 0; i < env.robot_info_.size(); i++){
@@ -143,6 +155,8 @@ int main(int argc, char ** argv)
             env.robot_info_[i].image_subscriber->waiting_for_sync();
           }
         }
+
+        // picture taking (ignore point cloud, probably does not work with this version)
         if (reconstruct_point_clouds){
           env.BuildPointClouds(true);
           env.SavePointClouds();
@@ -150,6 +164,8 @@ int main(int argc, char ** argv)
         } else {
           env.SaveRobotImages();
         }
+
+        // logging the environment
         RCLCPP_INFO(logger, "Update Log");
         env.UpdateLog();
         RCLCPP_INFO(logger, "LogUpdated");
