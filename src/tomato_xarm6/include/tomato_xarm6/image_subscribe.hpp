@@ -30,7 +30,7 @@ namespace tomato_xarm6
     class ImageSubscriber
     {
     public:
-        ImageSubscriber(std::string &node_name, double camera_FOV, int width, int height, bool capture_both);
+        ImageSubscriber(std::string &node_name, double camera_FOV, int width, int height, bool capture_both, std::string &topic_name);
         ~ImageSubscriber();
 
         void start();

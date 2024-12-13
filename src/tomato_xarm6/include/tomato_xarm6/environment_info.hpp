@@ -56,6 +56,7 @@ namespace tomato_xarm6
         rclcpp::Time creation_time;
 
         std::string name;
+        std::string topic_name;
         std::string base_transforms;
         std::string camera_transforms;
         std::string camera_quaternion;

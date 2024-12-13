@@ -53,7 +53,7 @@ namespace tomato_xarm6 {
             EnvPublishCommand("GetSceneInfo:0");
             RCLCPP_INFO(node_->get_logger(), "waiting for sync - Environment");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            rclcpp::spin_some(node_);
+            //rclcpp::spin_some(node_);
         }
         RCLCPP_INFO(node_->get_logger(), "got Environment");
     }
@@ -246,9 +246,13 @@ namespace tomato_xarm6 {
 
     void EnvironmentInfo::SaveRobotImages()
     {
-        robot_info_[0].image_subscriber->capture_count_ += 1;
-        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "Saving images");
-        robot_info_[0].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
+        for (size_t i = 0; i < robot_info_.size(); i++){
+            if (robot_info_[i].topic_name == "BenchBot"){
+                robot_info_[i].image_subscriber->capture_count_ += 1;
+                RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "Saving images");
+                robot_info_[i].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
+            }
+        }
     }
 
     void EnvironmentInfo::EnvPublishCommand(const std::string& command)
@@ -328,6 +332,7 @@ namespace tomato_xarm6 {
         boost::split(tokens, data, boost::is_any_of(","), boost::token_compress_off);
 
         name = tokens[0]+tokens[1];
+        topic_name = tokens[0];
         base_transforms = tokens[3];
         camera_FOV = std::stod(tokens[4]);
         camera_height = std::stoi(tokens[5]);
@@ -337,7 +342,7 @@ namespace tomato_xarm6 {
     }
 
     void RobotInfo::ConfigCamera(std::string &node_name, bool capture_both) {
-        image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height, capture_both);
+        image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height, capture_both, topic_name);
         RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "FOV: %f, width: %d, height: %d", camera_FOV, camera_width, camera_height);
 
         //image_subscriber->update_intrinsics(camera_FOV, camera_width, camera_height);
@@ -357,7 +362,11 @@ namespace tomato_xarm6 {
         csv_data += name + ",";
         csv_data += std::to_string(camera_FOV);
         csv_data += ",";
-        csv_data += std::to_string(image_subscriber->capture_count_);
+        if (image_subscriber != nullptr){
+            csv_data += std::to_string(image_subscriber->capture_count_);
+        } else {
+            csv_data += "no camera";
+        }
         csv_data += ",";
         double base_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
         RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", base_transforms.c_str());

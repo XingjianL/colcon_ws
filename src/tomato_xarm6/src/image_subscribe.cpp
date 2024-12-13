@@ -3,7 +3,7 @@
 //#include "image_subscribe.hpp"
 
 namespace tomato_xarm6 {
-    ImageSubscriber::ImageSubscriber(std::string &node_name, double camera_FOV, int width, int height, bool capture_both) 
+    ImageSubscriber::ImageSubscriber(std::string &node_name, double camera_FOV, int width, int height, bool capture_both, std::string &topic_name) 
     {
         executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
 
@@ -16,13 +16,13 @@ namespace tomato_xarm6 {
         );
         
         
-        sync_sub_color_.subscribe(node_, "/ue5/one/Color");
-        sync_sub_color1_.subscribe(node_, "/ue5/one/ColorOne");
+        sync_sub_color_.subscribe(node_, "/ue5/"+topic_name+"/Color");
+        sync_sub_color1_.subscribe(node_, "/ue5/"+topic_name+"/ColorOne");
 
-        sync_sub_segment_.subscribe(node_, "/ue5/one/Segmentation");
+        sync_sub_segment_.subscribe(node_, "/ue5/"+topic_name+"/Segmentation");
         
-        sync_sub_depth_.subscribe(node_, "/ue5/one/Depth");
-        sync_sub_depth1_.subscribe(node_, "/ue5/one/DepthOne");
+        sync_sub_depth_.subscribe(node_, "/ue5/"+topic_name+"/Depth");
+        sync_sub_depth1_.subscribe(node_, "/ue5/"+topic_name+"/DepthOne");
 
         point_cloud_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("pointcloud", 10);
 
@@ -181,10 +181,14 @@ namespace tomato_xarm6 {
     void ImageSubscriber::waiting_for_sync()
     {
         //clear_images();
+        printf("a");
+        RCLCPP_INFO(node_->get_logger(), "clearing image topics");
+        printf("b");
         std::unique_lock<std::mutex> lock(waiting_msg_mutex);
         lock.unlock();
         rgbd_sync_.reset();
         stereo_sync_.reset();
+        RCLCPP_INFO(node_->get_logger(), "clearing stereo topics");
         stereo_sync_ = std::make_shared<message_filters::Synchronizer<ApproxTimeSyncPolicyStereo>>(
             ApproxTimeSyncPolicyStereo(1),
             sync_sub_color_, sync_sub_color1_, sync_sub_depth_, sync_sub_depth1_
@@ -192,6 +196,8 @@ namespace tomato_xarm6 {
         stereo_sync_->registerCallback(
             std::bind(&ImageSubscriber::StereoImageCallback, this, 
                 std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,std::placeholders::_4));
+
+        RCLCPP_INFO(node_->get_logger(), "clearing rgbd topics");
         rgbd_sync_ = std::make_shared<message_filters::Synchronizer<ApproxTimeSyncPolicyRGBD>>(
             ApproxTimeSyncPolicyRGBD(1),
             sync_sub_color_, sync_sub_segment_, sync_sub_depth_

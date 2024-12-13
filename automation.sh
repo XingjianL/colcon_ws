@@ -23,8 +23,9 @@ do
 #     #ros2 run benchbot_xarm6_cpp benchbot_xarm6_cpp
 #     #ros2 run benchbot_xarm6_stereo benchbot_xarm6_stereo
 #     RCUTILS_LOGGING_USE_ROSOUT=1 RCUTILS_LOGGING_BUFFERED_STREAM=1 ros2 run tomato_xarm6 tomato_xarm6 -- --light-temp 10000 --both --seed $((24+i))
+    kill -9 $(pgrep tomato_xarm6)
     RCUTILS_LOGGING_USE_ROSOUT=1 RCUTILS_LOGGING_BUFFERED_STREAM=1 ros2 run tomato_xarm6 tomato_xarm6 -- --reset-time --light-temp 0,0,1 --both --seed 508 --disease-filter 2 --split-height-leaf 300,16 --preprocess Lab
-
+    kill -9 $(pgrep tomato_xarm6)
 done
 
 # RCUTILS_LOGGING_USE_ROSOUT=1 RCUTILS_LOGGING_BUFFERED_STREAM=1 ros2 run tomato_xarm6 tomato_xarm6 -- --reset-time --light-temp 6500,40,-3 --both --seed 506 --disease-filter 0,2,3,4,6,7,8,9 --split-height-leaf 300,16 --preprocess Lab
