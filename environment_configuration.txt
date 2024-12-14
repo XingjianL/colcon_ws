@@ -1,0 +1,82 @@
+# install ros humble (inside WSL Ubuntu 22.04)
+locale
+sudo apt update && sudo apt install locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+locale
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+sudo apt update && sudo apt install curl -y
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+sudo apt update
+sudo apt upgrade
+sudo apt install ros-humble-desktop
+source /opt/ros/humble/setup.bash
+# auto source the ros environment values when opening a new terminal window
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+
+# install some packages for rosdep and other ros packages dependencies
+sudo apt update && sudo apt install -y python3-flake8-docstrings python3-pip python3-pytest-cov ros-dev-tools libc++-dev ros-humble-moveit
+sudo apt-get install libopen3d-dev
+
+# grab the ROS code
+git clone https://github.com/XingjianL/UE5Sim_colcon_ws.git
+cd UE5Sim_colcon_ws/
+cd src/
+# other ROS packages
+git clone https://github.com/tsender/rosbridge_suite.git
+git clone https://github.com/xArm-Developer/xarm_ros2.git --recursive -b $ROS_DISTRO
+cd xarm_ros2/
+git pull
+git submodule update --init --remote
+cd ~/UE5Sim_colcon_ws/
+
+# install most package dependencies (may need to run multiple times to install them all)
+sudo rosdep init
+rosdep update
+rosdep install -i --from-path src --rosdistro humble -y --skip-keys "OpenCV trac_ik_kinematics_plugin Open3D"
+
+# install open3d c++ (see readme for instructions, need to download and change files)
+####
+#   Important: after changing the Open3DConfig.cmake, also change the CMakeLists.txt in src for the following packages
+#       tomato_xarm6
+#       benchbot_xarm6_cpp
+#       benchbot_xarm6_stereo
+#   change the `set(Open3D_DIR)` to the lib/cmake/Open3D in open3d_install 
+####
+cd ~/
+mkdir open3d_install
+cd open3d_install/
+
+# keep rosdep install and build until the rosbridge server is without issues (close if the rosbridge server fails)
+# check fail by running the `ros2 launch` and scrolling up to check lines starting with `[rosbridge_tcp-1]` have any import issues
+# if there is then ctrl-c out of launch and run the rosdep 
+cd ~/UE5Sim_colcon_ws/
+colcon build
+source install/setup.bash
+ros2 launch tomato_xarm6 upside_down_xarm6_moveit.launch.py 
+rosdep install -i --from-path src --rosdistro humble -y --skip-keys "OpenCV trac_ik_kinematics_plugin Open3D"
+colcon build
+source install/setup.bash
+ros2 launch tomato_xarm6 upside_down_xarm6_moveit.launch.py 
+rosdep install -i --from-path src --rosdistro humble -y --skip-keys "OpenCV trac_ik_kinematics_plugin Open3D"
+colcon build
+source install/setup.bash
+
+# launching the server and RViz for simple visualizations (not simulation)
+ros2 launch tomato_xarm6 upside_down_xarm6_moveit.launch.py 
+
+# open the simulator (AgriRoboSim.exe) in Windows
+# if successful install then the line
+#       [rosbridge_tcp-1] [INFO] [1733971552.872699947] [rosbridge_tcp]: [2024-12-11 21:45:52.872486] [Client 0] connected. 1 client total.
+# will appear in the `ros2 launch`` window
+# if not successful, then nothing will show after opening the exe 
+#       (missing packages usually can be fixed by keep running rosdep install and colcon build)
+
+# run the image capturing script (tomato_xarm6.cpp) in another terminal window
+cd UE5Sim_colcon_ws/
+source install/setup.bash
+ros2 run tomato_xarm6 tomato_xarm6 
+bash automation.sh 
