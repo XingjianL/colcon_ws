@@ -27,6 +27,7 @@ namespace tomato_xarm6
         rclcpp::TimerBase::SharedPtr timer_;
         sensor_msgs::msg::JointState jointstates_;
         geometry_msgs::msg::Transform transform_;
+        bool publish_topic_ = false;
     };
 }
 #endif

@@ -17,6 +17,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(message_filters REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 find_package(Open3D REQUIRED)
 # uncomment the following section in order to fill in
@@ -28,6 +29,7 @@ include_directories(include)
 include_directories(
   ${OpenCV_INCLUDE_DIRS}
   ${Open3D_INCLUDE_DIRS}
+  ${YAML_CPP_INCLUDE_DIRS}
   include
 )
 
@@ -61,7 +63,7 @@ ament_target_dependencies(
 install(TARGETS tomato_xarm6
   DESTINATION lib/${PROJECT_NAME})
 
-target_link_libraries(tomato_xarm6 Open3D::Open3D)
+target_link_libraries(tomato_xarm6 Open3D::Open3D yaml-cpp)
 
 
 if(BUILD_TESTING)

@@ -11,6 +11,7 @@ namespace tomato_xarm6
         jointstates_.name = {"none"};
         planar_publisher_ = node_->create_publisher<geometry_msgs::msg::Transform>("ue5/"+robot_prefix+"/planar_robot_tf",10);
         joints_publisher_ = node_->create_publisher<sensor_msgs::msg::JointState>("ue5/"+robot_prefix+"/joint_states",10);
+
         timer_ = node_->create_wall_timer(
             std::chrono::milliseconds(100),
             std::bind(&PlanarRobot::publish_both, this)
@@ -18,7 +19,7 @@ namespace tomato_xarm6
     }
 
     PlanarRobot::~PlanarRobot(){
-
+        timer_->cancel();
     }
 
     void PlanarRobot::publish_planar_robot(){
@@ -29,6 +30,9 @@ namespace tomato_xarm6
         joints_publisher_->publish(jointstates_);
     }
     void PlanarRobot::publish_both(){
+        if (!publish_topic_){
+            return;
+        }
         publish_planar_robot();
         publish_joints_robot();
     }
@@ -49,10 +53,12 @@ namespace tomato_xarm6
         transform_.rotation.y = final_rot.y();
         transform_.rotation.z = final_rot.z();
         transform_.rotation.w = final_rot.w();
+        publish_topic_ = true;
     }
     void PlanarRobot::set_joints_targets(std::vector<std::string> name, std::vector<double> target){
         jointstates_.position = target;
         jointstates_.name = name;
+        publish_topic_ = true;
     }
 
     

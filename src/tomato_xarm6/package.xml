@@ -16,7 +16,7 @@
   <depend>message_filters</depend>
   <depend>Open3D</depend>
   <depend>sensor_msgs</depend>
-
+  <depend>yaml-cpp</depend>
   <depend>trac_ik_kinematics_plugin</depend>
 
   <exec_depend>joint_state_publisher</exec_depend>

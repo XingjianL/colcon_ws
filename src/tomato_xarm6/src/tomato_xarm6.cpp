@@ -7,6 +7,7 @@
 #include "tomato_xarm6/planar_robot.hpp"
 #include <thread>
 #include <random>
+#include <yaml-cpp/yaml.h>
 
 void spin_node_in_thread(rclcpp::Node::SharedPtr node)
 {
@@ -33,7 +34,7 @@ int main(int argc, char ** argv)
   std::string split_height_leaf = "";
   std::string leaf_preprocess = "";
   std::string percent_healthy = "0.5";
-
+  YAML::Node robot_positions;
   // add arguments here (see automation.sh for example usages)
   for (int i = 1; i < argc; i++)
   {
@@ -69,11 +70,19 @@ int main(int argc, char ** argv)
       percent_healthy = argv[i+1];
       ++i;
     }
+    if (arg=="--move-robot" && i+1 < argc) {
+      RCLCPP_INFO(logger, "--move-robot: %s", argv[i+1]);
+      robot_positions = YAML::Load(argv[i+1]);
+      ++i;
+    }
   }
   std::mt19937 randgen(seed);
   std::uniform_real_distribution<double> distribution(-0.05, 0.05);
 
   RCLCPP_INFO(logger, "Received arguments %d",argc);
+  for (const auto& item: robot_positions) {
+    RCLCPP_INFO(logger, "received position for %s: %f, %f", item["name"].as<std::string>().c_str(), item["x"].as<float>(),item["y"].as<float>());
+  }
   auto const node = std::make_shared<rclcpp::Node>(
     "tomato_xarm6",
     rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
@@ -106,6 +115,7 @@ int main(int argc, char ** argv)
   //env.waiting_for_sync();
   RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
 
+  
   // Sample setpoints from csv (if not using the argument)
   // auto benchbot_setpoints_ = tomato_xarm6::read_robot_setpoints(
   //   "/home/lxianglabxing/colcon_ws/src/tomato_xarm6/setpoints/setpoints1_xyz.csv", 
@@ -115,6 +125,34 @@ int main(int argc, char ** argv)
 
 
   for (int i = 0; i < 1; i+=sample_gap){
+    for (const auto& item: robot_positions) {
+      RCLCPP_INFO(logger, "moving position for %s: %f, %f", item["name"].as<std::string>().c_str(), item["x"].as<float>(),item["y"].as<float>());
+      std::string robot_name = item["name"].as<std::string>();
+      double x = item["x"].as<double>();
+      double y = item["y"].as<double>();
+      tomato_xarm6::PlanarRobot platform(node, robot_name);
+      if (robot_name == "BenchBot") {
+        platform.set_planar_targets(
+          x, 525, 25, 0
+        );
+        platform.set_joints_targets(
+          {"benchbot_plate", "benchbot_camera"}, 
+          {y, 100}
+        );
+      } else if (robot_name == "Spider") {
+        platform.set_planar_targets(
+          x, y, 0, 0
+        );
+      } else {
+        platform.set_planar_targets(
+          x, y, 0, 0
+        );
+      }
+      rclcpp::sleep_for(std::chrono::milliseconds(3000));
+    }
+
+    break; // testing move-robot
+
     rclcpp::sleep_for(std::chrono::milliseconds(1000)); // wait for the robot in UE5 to settle
     for (int plant_id_x = 1; plant_id_x < 10; plant_id_x++){ // 19
       double platform_pos_x = 1.0 * plant_id_x;//(plant_id / 3) * 0.225 * 6; 1.0 -> 19.0
