@@ -37,7 +37,7 @@ namespace tomato_xarm6 {
         pc_build_count_ = 0;
 
         environment_info_ = node_->create_subscription<std_msgs::msg::String>(
-            "/ue5/SceneInfo", 10, std::bind(&EnvironmentInfo::EnvStringCallback, this, std::placeholders::_1));
+            "/ue5/SceneInfo", 1, std::bind(&EnvironmentInfo::EnvStringCallback, this, std::placeholders::_1));
         //robot_info_.resize(1);
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -51,6 +51,8 @@ namespace tomato_xarm6 {
         waiting_msg = true;
         while(waiting_msg){
             EnvPublishCommand("GetSceneInfo:0");
+            environment_info_ = node_->create_subscription<std_msgs::msg::String>(
+                "/ue5/SceneInfo", 1, std::bind(&EnvironmentInfo::EnvStringCallback, this, std::placeholders::_1));
             RCLCPP_INFO(node_->get_logger(), "waiting for sync - Environment");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             //rclcpp::spin_some(node_);
@@ -59,7 +61,7 @@ namespace tomato_xarm6 {
     }
 
     void EnvironmentInfo::EnvStringCallback(const std_msgs::msg::String::ConstSharedPtr& msg) {
-        //RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "EnvironmentInfo");
+        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "EnvironmentInfo");
         ParseData(msg->data, robot_info_, plant_info_);
         waiting_msg = false;
     }

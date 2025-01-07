@@ -35,6 +35,7 @@ int main(int argc, char ** argv)
   std::string leaf_preprocess = "";
   std::string percent_healthy = "0.5";
   YAML::Node robot_positions;
+  bool skip_init = false;
   // add arguments here (see automation.sh for example usages)
   for (int i = 1; i < argc; i++)
   {
@@ -75,6 +76,9 @@ int main(int argc, char ** argv)
       robot_positions = YAML::Load(argv[i+1]);
       ++i;
     }
+    if (arg == "--skip-init") {
+      skip_init = true;
+    }
   }
   std::mt19937 randgen(seed);
   std::uniform_real_distribution<double> distribution(-0.05, 0.05);
@@ -96,13 +100,15 @@ int main(int argc, char ** argv)
   std::thread spin_thread(spin_node_in_thread, node);
 
   std::string cam_node_name = "tomato_xarm6_camera";
-  rclcpp::sleep_for(std::chrono::milliseconds(5000));
-  if (reset_time) {
-    env.EnvPublishCommand("TimeIncr:1:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PercentHealthy:"+percent_healthy+":PCGSeedIncr:1");
-  } else {
-    env.EnvPublishCommand("TimeIncr:0:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PercentHealthy:"+percent_healthy+":PCGSeedIncr:1");
+  if (!skip_init){
+    rclcpp::sleep_for(std::chrono::milliseconds(5000));
+    if (reset_time) {
+      env.EnvPublishCommand("TimeIncr:1:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PercentHealthy:"+percent_healthy+":PCGSeedIncr:1");
+    } else {
+      env.EnvPublishCommand("TimeIncr:0:LightSet:"+temperature+":DiseaseFilter:"+filtered_disease+":SplitHeightLeaf:"+split_height_leaf+":LeafPreprocess:"+leaf_preprocess+":PercentHealthy:"+percent_healthy+":PCGSeedIncr:1");
+    }
+    rclcpp::sleep_for(std::chrono::milliseconds(10000));
   }
-  rclcpp::sleep_for(std::chrono::milliseconds(10000));
   env.waiting_for_sync();
   for (size_t i = 0; i < env.robot_info_.size(); i++){
     RCLCPP_INFO(logger, "robot names %s, %d", env.robot_info_[i].topic_name.c_str(), env.robot_info_[i].topic_name == "BenchBot");
@@ -125,38 +131,38 @@ int main(int argc, char ** argv)
 
 
   for (int i = 0; i < 1; i+=sample_gap){
-    for (const auto& item: robot_positions) {
-      RCLCPP_INFO(logger, "moving position for %s: %f, %f", item["name"].as<std::string>().c_str(), item["x"].as<float>(),item["y"].as<float>());
-      std::string robot_name = item["name"].as<std::string>();
-      double x = item["x"].as<double>();
-      double y = item["y"].as<double>();
-      tomato_xarm6::PlanarRobot platform(node, robot_name);
-      if (robot_name == "BenchBot") {
-        platform.set_planar_targets(
-          x, 525, 25, 0
-        );
-        platform.set_joints_targets(
-          {"benchbot_plate", "benchbot_camera"}, 
-          {y, 100}
-        );
-      } else if (robot_name == "Spider") {
-        platform.set_planar_targets(
-          x, y, 0, 0
-        );
-      } else {
-        platform.set_planar_targets(
-          x, y, 0, 0
-        );
-      }
-      rclcpp::sleep_for(std::chrono::milliseconds(3000));
-    }
+    // for (const auto& item: robot_positions) {
+    //   RCLCPP_INFO(logger, "moving position for %s: %f, %f", item["name"].as<std::string>().c_str(), item["x"].as<float>(),item["y"].as<float>());
+    //   std::string robot_name = item["name"].as<std::string>();
+    //   double x = item["x"].as<double>();
+    //   double y = item["y"].as<double>();
+    //   tomato_xarm6::PlanarRobot platform(node, robot_name);
+    //   if (robot_name == "BenchBot") {
+    //     platform.set_planar_targets(
+    //       x, 525, 25, 0
+    //     );
+    //     platform.set_joints_targets(
+    //       {"benchbot_plate", "benchbot_camera"}, 
+    //       {y, 100}
+    //     );
+    //   } else if (robot_name == "Spider") {
+    //     platform.set_planar_targets(
+    //       x, y, 0, 0
+    //     );
+    //   } else {
+    //     platform.set_planar_targets(
+    //       x, y, 0, 0
+    //     );
+    //   }
+    //   rclcpp::sleep_for(std::chrono::milliseconds(3000));
+    // }
 
-    break; // testing move-robot
+    //break; // testing move-robot
 
     rclcpp::sleep_for(std::chrono::milliseconds(1000)); // wait for the robot in UE5 to settle
-    for (int plant_id_x = 1; plant_id_x < 10; plant_id_x++){ // 19
+    for (int plant_id_x = 1; plant_id_x < 16; plant_id_x++){ // 19
       double platform_pos_x = 1.0 * plant_id_x;//(plant_id / 3) * 0.225 * 6; 1.0 -> 19.0
-      for (int plant_id_y = 1; plant_id_y < 2; plant_id_y++){ // 7
+      for (int plant_id_y = 1; plant_id_y < 8; plant_id_y++){ // 7
         double platform_pos_y = 1.0 * plant_id_y;//(plant_id % 3) * 0.225 * 6; 2.0 -2.0-> 12.0 (14.0 -2.0-> 4.0)
         
         // benchbot set position
@@ -168,7 +174,7 @@ int main(int argc, char ** argv)
         // this provides a more realistic visual, only using the planar also works
         benchbot_platform.set_joints_targets(
           {"benchbot_plate", "benchbot_camera"}, 
-          {platform_pos_x * 50, platform_pos_y * 100}
+          {platform_pos_y * 50, 100}
         );
         RCLCPP_INFO(logger, "set benchbot pos");
 
@@ -180,7 +186,7 @@ int main(int argc, char ** argv)
 
         // husky set position
         husky_platform.set_planar_targets(
-          platform_pos_x * 100, 525, 0, 0
+          platform_pos_x * 5 + platform_pos_y * 10, 525, 0, 0
         );
         RCLCPP_INFO(logger, "set husky pos");
         
@@ -226,8 +232,9 @@ int main(int argc, char ** argv)
 
   //env.EnvPublishCommand("PCGSeedIncr:1");
   rclcpp::sleep_for(std::chrono::milliseconds(1000));
-  //spin_thread.join();
+  //
   rclcpp::shutdown();
+  spin_thread.join();
   printf("goodbye world tomato_xarm6 package\n");
 
   return 0;
