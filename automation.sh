@@ -17,10 +17,10 @@
 # done
 
 # RCUTILS_LOGGING_USE_ROSOUT=1 RCUTILS_LOGGING_BUFFERED_STREAM=1 ros2 run tomato_xarm6 tomato_xarm6 -- --reset-time --light-temp 10000 --both --seed 24
-for i in $(seq 1 11);
+for i in $(seq 1 21);
 do
     kill -9 $(pgrep tomato_xarm6)
-    RCUTILS_LOGGING_USE_ROSOUT=1 RCUTILS_LOGGING_BUFFERED_STREAM=1 ros2 run tomato_xarm6 tomato_xarm6 -- --reset-time --light-temp 0,0,1 --both --seed 508 --disease-filter 2 --split-height-leaf 300,16 --preprocess Lab --percent-healthy 0.1 --move-robot "[{name: BenchBot, x: 100, y: 200}, {name: Spider, x: 300, y: 350}, {name: Husky, x: 200, y: 525}]"
+    RCUTILS_LOGGING_USE_ROSOUT=1 RCUTILS_LOGGING_BUFFERED_STREAM=1 ros2 run tomato_xarm6 tomato_xarm6 -- --reset-time --light-temp 6500,40,-3 --both --seed 508 --disease-filter 2 --split-height-leaf 300,16 --preprocess Lab --percent-healthy 0.1 --move-robot "[{name: BenchBot, x: 100, y: 200}, {name: Spider, x: 300, y: 350}, {name: Husky, x: 200, y: 525}]"
     kill -9 $(pgrep tomato_xarm6)
 done
 

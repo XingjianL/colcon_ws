@@ -54,7 +54,6 @@ namespace benchbot_xarm6 {
             RCLCPP_INFO(node_->get_logger(), "waiting for sync - Environment");
             EnvPublishCommand("GetSceneInfo:0");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            rclcpp::spin_some(node_);
         }
         RCLCPP_INFO(node_->get_logger(), "got Environment");
     }
@@ -149,12 +148,18 @@ namespace benchbot_xarm6 {
 
     void EnvironmentInfo::BuildPointClouds(bool save_intermediate) {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Started");
-        robot_info_[0].image_subscriber->under_recon_ = true;
+        int robot_id = 0;
+        for (size_t i = 0; i < robot_info_.size(); i++){
+            if (robot_info_[i].topic_name == "xArm6"){
+                robot_id = i;
+            }
+        }
+        robot_info_[robot_id].image_subscriber->under_recon_ = true;
         pc_build_count_ += 1;
 
         // Parse UE5 robot base transformation to world
         double ue5_robot_base[9] = {0,0,0,0,0,0,0,0,0};
-        ParseUE5TransformString(robot_info_[0].base_transforms, ue5_robot_base);
+        ParseUE5TransformString(robot_info_[robot_id].base_transforms, ue5_robot_base);
         
         Eigen::Matrix4d transformation_mat_;
         transformation_mat_.setIdentity();
@@ -185,7 +190,7 @@ namespace benchbot_xarm6 {
                 std::filesystem::create_directories(dir_path);
                 save_intermediate_path = save_intermediate_path + "/" + std::to_string(pc_build_count_);
             }
-            robot_info_[0].image_subscriber->process_to_pc(
+            robot_info_[robot_id].image_subscriber->process_to_pc(
                 plant.unique_point_clouds, 
                 transformation_mat_,
                 plant.instance_segmentation_id_g, plant.instance_segmentation_id_b,
@@ -193,7 +198,7 @@ namespace benchbot_xarm6 {
                 visualizer);
         }
         
-        robot_info_[0].image_subscriber->under_recon_ = false;
+        robot_info_[robot_id].image_subscriber->under_recon_ = false;
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Finished");
         
     }
@@ -217,7 +222,13 @@ namespace benchbot_xarm6 {
         int closest_plant = 0;
         double closest_dist = 1e9;
         double base_transform[9] = {0,0,0,0,0,0,0,0,0};
-        ParseUE5TransformString(robot_info_[0].base_transforms, base_transform);
+        int robot_id = 0;
+        for (size_t i = 0; i < robot_info_.size(); i++){
+            if (robot_info_[i].topic_name == "xArm6"){
+                robot_id = i;
+            }
+        }
+        ParseUE5TransformString(robot_info_[robot_id].base_transforms, base_transform);
         
         for (size_t i = 0; i < plant_info_.size(); i++){
             auto dist = plant_info_[i].CalcDistance(base_transform[0],base_transform[1],base_transform[2]);
@@ -301,8 +312,13 @@ namespace benchbot_xarm6 {
 
     void EnvironmentInfo::SaveRobotImages()
     {
-        robot_info_[0].image_subscriber->capture_count_ += 1;
-        robot_info_[0].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
+        for (size_t i = 0; i < robot_info_.size(); i++){
+            if (robot_info_[i].topic_name == "xArm6"){
+                robot_info_[i].image_subscriber->capture_count_ += 1;
+                RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "Saving images");
+                robot_info_[i].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
+            }
+        }
     }
 
     void EnvironmentInfo::EnvPublishCommand(const std::string& command)
@@ -381,6 +397,7 @@ namespace benchbot_xarm6 {
         boost::split(tokens, data, boost::is_any_of(","), boost::token_compress_off);
 
         name = tokens[0]+tokens[1];
+        topic_name = tokens[0];
         base_transforms = tokens[3];
         camera_FOV = std::stod(tokens[4]);
         camera_height = std::stoi(tokens[5]);
@@ -389,8 +406,8 @@ namespace benchbot_xarm6 {
         camera_quaternion = tokens[8];
     }
 
-    void RobotInfo::ConfigCamera(std::string &node_name) {
-        image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height);
+    void RobotInfo::ConfigCamera(std::string &node_name, bool capture_both) {
+        image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height, capture_both, topic_name);
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_camera"), "FOV: %f, width: %d, height: %d", camera_FOV, camera_width, camera_height);
 
         //image_subscriber->update_intrinsics(camera_FOV, camera_width, camera_height);
@@ -410,17 +427,21 @@ namespace benchbot_xarm6 {
         csv_data += name + ",";
         csv_data += std::to_string(camera_FOV);
         csv_data += ",";
-        csv_data += std::to_string(image_subscriber->capture_count_);
+        if (image_subscriber != nullptr){
+            csv_data += std::to_string(image_subscriber->capture_count_);
+        } else {
+            csv_data += "no camera";
+        }
         csv_data += ",";
         double base_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "%s", base_transforms.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", base_transforms.c_str());
         ParseUE5TransformString(base_transforms, base_transform_arr);
         for (auto element : base_transform_arr){
             csv_data += std::to_string(element);
             csv_data += ",";
         }
         double cam_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "%s", camera_transforms.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", camera_transforms.c_str());
         ParseUE5TransformString(camera_transforms, cam_transform_arr);
         for (auto element : cam_transform_arr){
             csv_data += std::to_string(element);

@@ -181,9 +181,7 @@ namespace tomato_xarm6 {
     void ImageSubscriber::waiting_for_sync()
     {
         //clear_images();
-        printf("a");
         RCLCPP_INFO(node_->get_logger(), "clearing image topics");
-        printf("b");
         std::unique_lock<std::mutex> lock(waiting_msg_mutex);
         lock.unlock();
         rgbd_sync_.reset();

@@ -249,7 +249,7 @@ namespace tomato_xarm6 {
     void EnvironmentInfo::SaveRobotImages()
     {
         for (size_t i = 0; i < robot_info_.size(); i++){
-            if (robot_info_[i].topic_name == "BenchBot"){
+            if (robot_info_[i].topic_name == "Husky"){
                 robot_info_[i].image_subscriber->capture_count_ += 1;
                 RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "Saving images");
                 robot_info_[i].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
