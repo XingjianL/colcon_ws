@@ -4,6 +4,7 @@ from pointr_minimal.utils.config import cfg_from_yaml_file
 from pointr_minimal.tools import builder
 from pointr_minimal.datasets.io import IO
 from pointr_minimal.datasets.data_transforms import Compose
+from next_best_view_gen.nbv_gen import NBV
 
 import torch
 import open3d
@@ -79,6 +80,8 @@ class PartialPCDPredictorNode(Node):
         self.predictor_model = predictor_model
         self.subscription
         self.received_pcd = 0
+        self.NBV = NBV()
+        
     def callback(self, msg: PointCloud2):
         self.get_logger().info("Received partial point cloud")
         pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1,msg.point_step)
