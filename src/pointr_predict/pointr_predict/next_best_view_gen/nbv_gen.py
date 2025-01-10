@@ -115,11 +115,37 @@ class NBV():
 
                 r.append(r[-1] + clipped_gradient)
             return all_estimates_one, all_estimates_two, np.array(all_falses), r, [view_point_one, view_point_two]
-        
+        print("start")
         positive_esti, negative_esti, falses, radii, view_angle = optimal_of_axis(axis)
         optimal_r = radii[np.argmin(falses[:,0])]
         optimal_estimates = [positive_esti[np.argmin(falses[:,0])], negative_esti[np.argmin(falses[:,0])]]
-        return positive_esti, negative_esti, falses, radii, view_angle
+        print("finished")
+        return {"positive_esti" : positive_esti, 
+                "negative_esti" : negative_esti, 
+                "falses" : falses, 
+                "radii" : radii, 
+                "view_angles" : view_angle, 
+                "optimal_estimates" : optimal_estimates}
+    def generate(self, threaded = False):
+        if threaded:
+            from multiprocessing.pool import ThreadPool
+            pool = ThreadPool(processes=3)
+            tasks = [(0,),(1,),(2,)]
+            results = pool.starmap(self.hpr_pca_grad_des,tasks)
+            
+            return results
+        
+        print("optimizing ax1")
+        ax1_results = self.hpr_pca_grad_des(0)
+        print("optimizing ax2")
+        ax2_results = self.hpr_pca_grad_des(1)
+        print("optimizing ax3")
+        ax3_results = self.hpr_pca_grad_des(2)
+
+        all_angles = np.array(ax1_results["view_angles"] + ax2_results["view_angles"] + ax3_results["view_angles"])
+        optimal_order = np.argsort(ax1_results["optimal_estimates"]+ax2_results["optimal_estimates"]+ax3_results["optimal_estimates"])
+
+        return all_angles, optimal_order
 
 if __name__ == "__main__":
     select = 1
@@ -128,4 +154,7 @@ if __name__ == "__main__":
 
     nbv = NBV()
     nbv.set_pcds(inputpcd, pred)
-    print(nbv.hpr_pca_grad_des())
+    import time
+    start = time.time()
+    print(nbv.generate(threaded=False))
+    print(time.time() - start)
