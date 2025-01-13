@@ -1,5 +1,6 @@
 import open3d as o3d
 import numpy as np
+import time
 class NBV():
     def __init__(self, radius = 0.5):
         self.input_pcd = o3d.geometry.PointCloud()
@@ -91,12 +92,12 @@ class NBV():
             filter_mean, filter_val, filter_vec = self.filtered_pred_pcd_pca
             view_point_one = [filter_mean[0]+filter_vec[0,axis]/2,filter_mean[1]+filter_vec[1,axis]/2,filter_mean[2]+filter_vec[2,axis]/2]
             view_point_two = [filter_mean[0]-filter_vec[0,axis]/2,filter_mean[1]-filter_vec[1,axis]/2,filter_mean[2]-filter_vec[2,axis]/2]
-            r = [100, 100+100]
+            r = [1000, 1000+100]
             all_falses = []
             optimal_pair = []
             all_estimates_one = []
             all_estimates_two = []
-            step_rate = 50
+            step_rate = 25
             left_bound = 10
             right_bound = 100000
 
@@ -108,7 +109,7 @@ class NBV():
                 gradient, falses = find_gradient(hpr_filtered_one_pair, hpr_filtered_two_pair)
                 if r[-1] < r[-2]:
                     gradient *= -1
-                if abs(gradient) < 10:
+                if abs(gradient) < 1:
                     gradient += 0.05*r[-1]
                 all_falses.append(falses)
                 clipped_gradient = np.clip(iteration * step_rate * np.sign(gradient)*np.log(abs(gradient)), 0.9*(left_bound-r[-1]), 0.9*(right_bound-r[-1]))
@@ -116,8 +117,11 @@ class NBV():
                 r.append(r[-1] + clipped_gradient)
             return all_estimates_one, all_estimates_two, np.array(all_falses), r, [view_point_one, view_point_two]
         print("start")
+        start_t = time.time()
         positive_esti, negative_esti, falses, radii, view_angle = optimal_of_axis(axis)
+        print(time.time()-start_t)
         optimal_r = radii[np.argmin(falses[:,0])]
+        
         optimal_estimates = [positive_esti[np.argmin(falses[:,0])], negative_esti[np.argmin(falses[:,0])]]
         print("finished")
         return {"positive_esti" : positive_esti, 
@@ -132,8 +136,10 @@ class NBV():
             pool = ThreadPool(processes=3)
             tasks = [(0,),(1,),(2,)]
             results = pool.starmap(self.hpr_pca_grad_des,tasks)
-            
-            return results
+            all_angles = np.array(results[0]["view_angles"] + results[1]["view_angles"] + results[2]["view_angles"])
+            optimal_order = np.argsort(results[0]["optimal_estimates"]+results[1]["optimal_estimates"]+results[2]["optimal_estimates"])[::-1]
+
+            return all_angles, optimal_order
         
         print("optimizing ax1")
         ax1_results = self.hpr_pca_grad_des(0)
@@ -143,7 +149,7 @@ class NBV():
         ax3_results = self.hpr_pca_grad_des(2)
 
         all_angles = np.array(ax1_results["view_angles"] + ax2_results["view_angles"] + ax3_results["view_angles"])
-        optimal_order = np.argsort(ax1_results["optimal_estimates"]+ax2_results["optimal_estimates"]+ax3_results["optimal_estimates"])
+        optimal_order = np.argsort(ax1_results["optimal_estimates"]+ax2_results["optimal_estimates"]+ax3_results["optimal_estimates"])[::-1]
 
         return all_angles, optimal_order
 
@@ -156,5 +162,5 @@ if __name__ == "__main__":
     nbv.set_pcds(inputpcd, pred)
     import time
     start = time.time()
-    print(nbv.generate(threaded=False))
+    print(nbv.generate(threaded=True))
     print(time.time() - start)

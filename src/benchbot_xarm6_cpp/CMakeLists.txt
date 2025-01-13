@@ -19,6 +19,8 @@ find_package(OpenCV REQUIRED)
 find_package(message_filters REQUIRED)
 
 find_package(Open3D REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(custom_msg REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -55,6 +57,8 @@ ament_target_dependencies(
   sensor_msgs
   cv_bridge
   OpenCV
+  custom_msg
+  rclcpp_components
   #message_filters
   #Open3D
 )

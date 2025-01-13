@@ -1,0 +1,6 @@
+sensor_msgs/PointCloud2 input_pcd
+---
+float32[] view_points
+int32[] optimal_order
+---
+string progress

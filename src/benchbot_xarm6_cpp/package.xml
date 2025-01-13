@@ -16,6 +16,8 @@
   <depend>message_filters</depend>
   <depend>Open3D</depend>
   <depend>sensor_msgs</depend>
+  <depend>action_msgs</depend>
+  <depend>custom_msg</depend>
 
   <depend>trac_ik_kinematics_plugin</depend>
 
