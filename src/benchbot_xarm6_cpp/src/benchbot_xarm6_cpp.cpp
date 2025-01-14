@@ -75,11 +75,11 @@ int main(int argc, char ** argv)
     for (int plant_id = 0; plant_id < 8; plant_id++){
       double platform_pos_x = plant_id;
       BenchBot_platform.set_planar_targets(
-        50, 200, 25, 0
+        50 - 124.848 + 50, 200, 25, 0
       );
       BenchBot_platform.set_joints_targets(
         {"benchbot_plate", "benchbot_camera"}, 
-        {platform_pos_x * 50, 100}
+        {platform_pos_x * 50 + 16.785 + 100, 100.632-47}
       );
       rclcpp::sleep_for(std::chrono::milliseconds(1000));
       env.waiting_for_sync();
@@ -101,6 +101,7 @@ int main(int argc, char ** argv)
       env.UpdateLog();
       RCLCPP_INFO(logger, "LogUpdated");
       rclcpp::sleep_for(std::chrono::milliseconds(100));
+      break;
     }
   }
 

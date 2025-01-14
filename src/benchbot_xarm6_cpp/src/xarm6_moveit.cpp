@@ -51,7 +51,7 @@ void benchbot_xarm6::XARM6MoveIt::setpoint_control(int ind)
         target_pose.orientation.z = quat.z();
         target_pose.position.x = next.x;
         target_pose.position.y = next.y;
-        target_pose.position.z = next.z-0.5;
+        target_pose.position.z = next.z-2.5;
         return target_pose;
     }();
     move_group_->clearPoseTargets();

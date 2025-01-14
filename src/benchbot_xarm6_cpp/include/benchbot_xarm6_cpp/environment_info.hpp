@@ -12,6 +12,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <tf2_msgs/msg/tf_message.hpp>
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
@@ -58,15 +59,17 @@ namespace benchbot_xarm6
 
         std::string name;
         std::string topic_name;
-        std::string base_transforms;
-        std::string camera_transforms;
-        std::string camera_quaternion;
+        double base_transforms[9];
+        double camera_transforms[9];
+        double camera_quaternions[4];
         
         double camera_FOV;
         int camera_width;
         int camera_height;
 
-
+        rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr robot_transforms_subscriber_;
+        void ConfigTFSubscriber(rclcpp::Node::SharedPtr node);
+        void TFCallback(const tf2_msgs::msg::TFMessage::ConstSharedPtr& msg);
         bool should_update = false;
         void UpdateRobotStatus(const std::string &data);
 

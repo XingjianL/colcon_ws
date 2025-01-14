@@ -27,7 +27,7 @@ from uf_ros_lib.moveit_configs_builder import MoveItConfigsBuilder
 def launch_setup(context, *args, **kwargs):
 
     attach_to = LaunchConfiguration('attach_to', default='world')
-    attach_xyz = LaunchConfiguration('attach_xyz', default='"0 0 2"')
+    attach_xyz = LaunchConfiguration('attach_xyz', default='"0 0 0"')
     attach_rpy = LaunchConfiguration('attach_rpy', default=f'"0 {pi} 0"')
     # Load the robot configuration
     moveit_config = (

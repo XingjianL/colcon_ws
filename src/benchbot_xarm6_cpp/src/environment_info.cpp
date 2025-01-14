@@ -21,7 +21,7 @@ namespace benchbot_xarm6 {
             RCLCPP_WARN(rclcpp::get_logger("benchbot_xarm_cpp"), "Incorrect Transform Message: %s", transform.c_str());
             return;
         }
-        result[0] = -std::stod(tokens[1]); // negative because x-axis in UE is in opposite direction than ROS
+        result[0] = std::stod(tokens[1]); // negative because x-axis in UE is in opposite direction than ROS
         result[1] = std::stod(tokens[2]);
         result[2] = std::stod(tokens[3]);
         result[3] = std::stod(tokens[4]);
@@ -124,6 +124,7 @@ namespace benchbot_xarm6 {
                 // if not then add this robot to the vector
                 if(!found){
                     RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "adding new robot: %s", result[0][i].c_str());
+                    robot.ConfigTFSubscriber(node_);
                     robot_info.push_back(robot);
                 }
             }
@@ -158,8 +159,8 @@ namespace benchbot_xarm6 {
         pc_build_count_ += 1;
 
         // Parse UE5 robot base transformation to world
-        double ue5_robot_base[9] = {0,0,0,0,0,0,0,0,0};
-        ParseUE5TransformString(robot_info_[robot_id].base_transforms, ue5_robot_base);
+        // double ue5_robot_base[9] = {0,0,0,0,0,0,0,0,0};
+        // ParseUE5TransformString(robot_info_[robot_id].base_transforms, ue5_robot_base);
         
         Eigen::Matrix4d transformation_mat_;
         transformation_mat_.setIdentity();
@@ -175,13 +176,14 @@ namespace benchbot_xarm6 {
         q.normalize();
         Eigen::Matrix3d rot = q.toRotationMatrix();
         transformation_mat_.block<3, 3>(0, 0) = rot;
-        transformation_mat_(0, 3) = translation.x - ue5_robot_base[0]/100.0;
-        transformation_mat_(1, 3) = translation.y - ue5_robot_base[1]/100.0;
-        transformation_mat_(2, 3) = translation.z;
+        transformation_mat_(0, 3) = translation.x + robot_info_[robot_id].base_transforms[0]/100.0;
+        transformation_mat_(1, 3) = translation.y + robot_info_[robot_id].base_transforms[1]/100.0;
+        transformation_mat_(2, 3) = translation.z + robot_info_[robot_id].base_transforms[2]/100.0;
         
         std::string save_intermediate_path = "";
         
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: %f %f", ue5_robot_base[0]/100.0, ue5_robot_base[1]/100.0);
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: %f %f", 
+            robot_info_[robot_id].base_transforms[0]/100.0, robot_info_[robot_id].base_transforms[1]/100.0);
         for(auto& plant : plant_info_){
             if (save_intermediate) {
                 save_intermediate_path = "output/pcd/plant_" + std::to_string(creation_time_.seconds()) + "/" +
@@ -221,17 +223,17 @@ namespace benchbot_xarm6 {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Started");
         int closest_plant = 0;
         double closest_dist = 1e9;
-        double base_transform[9] = {0,0,0,0,0,0,0,0,0};
+        //double base_transform[9] = {0,0,0,0,0,0,0,0,0};
         int robot_id = 0;
         for (size_t i = 0; i < robot_info_.size(); i++){
             if (robot_info_[i].topic_name == "xArm6"){
                 robot_id = i;
             }
         }
-        ParseUE5TransformString(robot_info_[robot_id].base_transforms, base_transform);
+        //ParseUE5TransformString(robot_info_[robot_id].base_transforms, base_transform);
         
         for (size_t i = 0; i < plant_info_.size(); i++){
-            auto dist = plant_info_[i].CalcDistance(base_transform[0],base_transform[1],base_transform[2]);
+            auto dist = plant_info_[i].CalcDistance(robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
             if (dist < closest_dist) {
                 closest_dist = dist;
                 closest_plant = i;
@@ -243,9 +245,10 @@ namespace benchbot_xarm6 {
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial");
             auto pcd_copy = std::make_shared<open3d::geometry::PointCloud>(pc.o3d_pc->points_);
             Eigen::Vector3d translation_vector(
-               base_transform[0]/100,
-               base_transform[1]/100, 
-               -1.1);
+               -robot_info_[robot_id].base_transforms[0]/100,
+               -robot_info_[robot_id].base_transforms[1]/100, 
+               -0.235   // height of plant in the simulation
+            );
             // Eigen::Vector3d translation_vector(
             //     0,
             //     0, 
@@ -398,12 +401,12 @@ namespace benchbot_xarm6 {
 
         name = tokens[0]+tokens[1];
         topic_name = tokens[0];
-        base_transforms = tokens[3];
+        ParseUE5TransformString(tokens[3],base_transforms);
         camera_FOV = std::stod(tokens[4]);
         camera_height = std::stoi(tokens[5]);
         camera_width = std::stoi(tokens[6]);
-        camera_transforms = tokens[7];
-        camera_quaternion = tokens[8];
+        ParseUE5TransformString(tokens[7],camera_transforms);
+        //camera_quaternion = ParseUE5TransformString(tokens[8]);
     }
 
     void RobotInfo::ConfigCamera(std::string &node_name, bool capture_both) {
@@ -411,6 +414,26 @@ namespace benchbot_xarm6 {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_camera"), "FOV: %f, width: %d, height: %d", camera_FOV, camera_width, camera_height);
 
         //image_subscriber->update_intrinsics(camera_FOV, camera_width, camera_height);
+    }
+    void RobotInfo::ConfigTFSubscriber(rclcpp::Node::SharedPtr node) {
+        robot_transforms_subscriber_ = node->create_subscription<tf2_msgs::msg::TFMessage>(
+            "ue5/"+topic_name+"/robot_state",10,std::bind(&RobotInfo::TFCallback,this,std::placeholders::_1));
+
+    }
+    void RobotInfo::TFCallback(const tf2_msgs::msg::TFMessage::ConstSharedPtr& msg) {
+        for (const auto &tf_ : msg->transforms){
+            if (tf_.header.frame_id.find("base")){
+                base_transforms[0] = -tf_.transform.translation.x;
+                base_transforms[1] = tf_.transform.translation.z;
+                base_transforms[2] = tf_.transform.translation.y;
+            }
+            if (tf_.header.frame_id.find("camera")){
+                camera_transforms[0] = -tf_.transform.translation.x;
+                camera_transforms[1] = tf_.transform.translation.z;
+                camera_transforms[2] = tf_.transform.translation.y;
+            }
+        }
+        
     }
 
     bool RobotInfo::operator==(const RobotInfo &rhs) const {
@@ -433,17 +456,17 @@ namespace benchbot_xarm6 {
             csv_data += "no camera";
         }
         csv_data += ",";
-        double base_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
-        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", base_transforms.c_str());
-        ParseUE5TransformString(base_transforms, base_transform_arr);
-        for (auto element : base_transform_arr){
+        //double base_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
+        //RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", base_transforms.c_str());
+        //ParseUE5TransformString(base_transforms, base_transform_arr);
+        for (auto element : base_transforms){
             csv_data += std::to_string(element);
             csv_data += ",";
         }
-        double cam_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
-        RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", camera_transforms.c_str());
-        ParseUE5TransformString(camera_transforms, cam_transform_arr);
-        for (auto element : cam_transform_arr){
+        //double cam_transform_arr[9] = {0,0,0,0,0,0,0,0,0};
+        //RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6"), "%s", camera_transforms.c_str());
+        //ParseUE5TransformString(camera_transforms, cam_transform_arr);
+        for (auto element : camera_transforms){
             csv_data += std::to_string(element);
             csv_data += ",";
         }
