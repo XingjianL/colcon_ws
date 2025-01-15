@@ -149,12 +149,7 @@ namespace benchbot_xarm6 {
 
     void EnvironmentInfo::BuildPointClouds(bool save_intermediate) {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Started");
-        int robot_id = 0;
-        for (size_t i = 0; i < robot_info_.size(); i++){
-            if (robot_info_[i].topic_name == "xArm6"){
-                robot_id = i;
-            }
-        }
+        int robot_id = GetRobotID("xArm6");
         robot_info_[robot_id].image_subscriber->under_recon_ = true;
         pc_build_count_ += 1;
 
@@ -219,19 +214,9 @@ namespace benchbot_xarm6 {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Finished");
     }
 
-    void EnvironmentInfo::PredictPointCloud(const std::shared_ptr<NBV>& nbv_) {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Started");
-        int closest_plant = 0;
+    int EnvironmentInfo::GetClosestPlant(int robot_id){
         double closest_dist = 1e9;
-        //double base_transform[9] = {0,0,0,0,0,0,0,0,0};
-        int robot_id = 0;
-        for (size_t i = 0; i < robot_info_.size(); i++){
-            if (robot_info_[i].topic_name == "xArm6"){
-                robot_id = i;
-            }
-        }
-        //ParseUE5TransformString(robot_info_[robot_id].base_transforms, base_transform);
-        
+        int closest_plant = 0;
         for (size_t i = 0; i < plant_info_.size(); i++){
             auto dist = plant_info_[i].CalcDistance(robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
             if (dist < closest_dist) {
@@ -239,7 +224,22 @@ namespace benchbot_xarm6 {
                 closest_plant = i;
             }
         }
+        return closest_plant;
+    }
+    int EnvironmentInfo::GetRobotID(const std::string& robot_name){
+        for (size_t i = 0; i < robot_info_.size(); i++){
+            if (robot_info_[i].topic_name == robot_name){
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    void EnvironmentInfo::PredictPointCloud(const std::shared_ptr<NBV>& nbv_) {
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Started");
         
+        int robot_id = GetRobotID("xArm6");
+        int closest_plant = GetClosestPlant(robot_id);
         
         for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial");
@@ -249,10 +249,6 @@ namespace benchbot_xarm6 {
                -robot_info_[robot_id].base_transforms[1]/100, 
                -0.235   // height of plant in the simulation
             );
-            // Eigen::Vector3d translation_vector(
-            //     0,
-            //     0, 
-            //     -1.1);
             pcd_copy->Translate(translation_vector);
             std::string filepath = "output/pcd/";
             std::filesystem::path dir_path = filepath;
@@ -274,7 +270,7 @@ namespace benchbot_xarm6 {
             if (filtered_pcd->points_.size() > 2000){
                 filtered_pcd = filtered_pcd->FarthestPointDownSample(2000);
             }
-            nbv_->publish_point_cloud(filtered_pcd);
+            nbv_->publish_point_cloud(filtered_pcd, plant_info_[closest_plant]);
         }
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Finished");
 
@@ -335,7 +331,8 @@ namespace benchbot_xarm6 {
 
     PlantInfo::PlantInfo() {
         creation_time = rclcpp::Clock(RCL_ROS_TIME).now();
-        csv_header = "Plant_Name,Plant_Variant,T_X,T_Y,T_Z,R,P,Y,S_X,S_Y,S_Z,ID_G,ID_B\n";
+        csv_header = "Plant_Name,Plant_Variant,T_X,T_Y,T_Z,R,P,Y,S_X,S_Y,S_Z,ID_G,ID_B,Notes\n";
+        nbv_step = 0;
     }
 
     void PlantInfo::ParseData(const std::string &data) {
@@ -370,6 +367,8 @@ namespace benchbot_xarm6 {
         csv_data += std::to_string(instance_segmentation_id_g);
         csv_data += ",";
         csv_data += std::to_string(instance_segmentation_id_b);
+        csv_data += ",";
+        csv_data += std::to_string(nbv_step);//std::string(nbv_optimal_order.begin(), nbv_optimal_order.end());
         csv_data += "\n";
     }
 

@@ -38,7 +38,10 @@ namespace benchbot_xarm6 {
     //     RCLCPP_INFO(node_->get_logger(),"predicted callback %d",msg->is_dense);
     // }
 
-    void NBV::publish_point_cloud(const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc) {
+    void NBV::publish_point_cloud(
+        const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc,
+        PlantInfo& plant_info) 
+    {
         auto goal_msg = NBVAction::Goal();
         if (!nbv_action_client->wait_for_action_server()) {
             RCLCPP_ERROR(node_->get_logger(), "NBV Action server not available after waiting");
@@ -72,8 +75,11 @@ namespace benchbot_xarm6 {
             send_goal_options.feedback_callback =
               std::bind(&NBV::feedback_callback, this, std::placeholders::_1, std::placeholders::_2);
             send_goal_options.result_callback =
-              std::bind(&NBV::result_callback, this, std::placeholders::_1);
-        nbv_action_client->async_send_goal(goal_msg, send_goal_options);
+              std::bind(&NBV::result_callback, this, std::placeholders::_1, plant_info);
+        auto future = nbv_action_client->async_send_goal(goal_msg, send_goal_options);
+        rclcpp::spin_until_future_complete(node_, future);
+        auto result = future.get();
+        RCLCPP_INFO(node_->get_logger(), "Got Result");
     }
 
     void NBV::goal_response_callback(const NBVGoalHandle::SharedPtr & goal_handle)
@@ -92,8 +98,11 @@ namespace benchbot_xarm6 {
         RCLCPP_INFO(node_->get_logger(), feedback->progress.c_str());
     }
 
-    void NBV::result_callback(const NBVGoalHandle::WrappedResult & result)
+    void NBV::result_callback(
+        const NBVGoalHandle::WrappedResult & result,
+        PlantInfo& plant_info)
     {
+        RCLCPP_INFO(node_->get_logger(), "Result Callback");
         switch (result.code) {
             case rclcpp_action::ResultCode::SUCCEEDED:
                 break;
@@ -109,12 +118,26 @@ namespace benchbot_xarm6 {
         }
 
         std::stringstream ss;
-        ss << "Result received: ";
+        ss << plant_info.plant_name << " " << plant_info.plant_variant << " "  << std::to_string(plant_info.instance_segmentation_id_b) << " Result received: ";
         for (auto number : result.result->optimal_order) {
             ss << number << " ";
         }
         RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
-        rclcpp::shutdown();
+        plant_info.nbv_optimal_order = result.result->optimal_order;
+        plant_info.nbv_view_points = result.result->view_points;
+        plant_info.nbv_step += 1;
+        ss << plant_info.plant_name << " " 
+            << plant_info.plant_variant << " "  
+            << std::to_string(plant_info.instance_segmentation_id_b) 
+            << " New NBV step " << std::to_string(plant_info.nbv_step) << ": ";
+        for (auto number : plant_info.nbv_optimal_order) {
+            ss << number << " ";
+        }
+        ss << " view_points: ";
+        for (auto number : plant_info.nbv_view_points) {
+            ss << number << " ";
+        }
+        RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
     }
 
 

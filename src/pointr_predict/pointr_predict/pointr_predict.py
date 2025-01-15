@@ -68,17 +68,17 @@ class AdaPoinTrModel():
 class PartialPCDPredictorNode(Node):
     def __init__(self, predictor_model : AdaPoinTrModel):
         super().__init__("benchbot_nbv")
-        self.subscription = self.create_subscription(
-            PointCloud2,
-            "/partial_pcd",
-            self.callback,
-            10
-        )
-        self.publisher = self.create_publisher(
-            PointCloud2,
-            "/predicted_pcd",
-            10
-        )
+        # self.subscription = self.create_subscription(
+        #     PointCloud2,
+        #     "/partial_pcd",
+        #     self.callback,
+        #     10
+        # )
+        # self.publisher = self.create_publisher(
+        #     PointCloud2,
+        #     "/predicted_pcd",
+        #     10
+        # )
         self._action_server = ActionServer(
             self,
             PcdNBV,
@@ -86,23 +86,24 @@ class PartialPCDPredictorNode(Node):
             self.action_callback
         )
         self.predictor_model = predictor_model
-        self.subscription
+        # self.subscription
         self.received_pcd = 0
         self.NBV = NBV()
     def action_callback(self, goal_handle):
         self.get_logger().info("Action server received partial point cloud")
         feedback_msg = PcdNBV.Feedback()
         feedback_msg.progress = "received"
+        print("received")
         # received and parsing pcd
         input_pcd_ros2 : PointCloud2 = goal_handle.request.input_pcd 
         input_pcd = np.frombuffer(input_pcd_ros2.data, dtype=np.uint8).reshape(-1,input_pcd_ros2.point_step)
         xyz = input_pcd[:,0:12].view(dtype=np.float32).reshape(-1,3)
         feedback_msg.progress = "parsed input"
-
+        print(f"input_pcd: {xyz.shape}")
         # prediction
         pred = self.predictor_model.inference_single_pcd(xyz,f"/home/lxianglabxing/colcon_ws/output/pcd/model_io/{self.received_pcd}")
         feedback_msg.progress = "prediction generated"
-
+        print(f"pred_pcd: {pred.shape}")
         # next-best-view selection
         o3d_input = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(xyz))
         o3d_pred = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(pred))
@@ -110,13 +111,14 @@ class PartialPCDPredictorNode(Node):
         feedback_msg.progress = "set input to NBV"
         view_points, optimal_order = self.NBV.generate()
         feedback_msg.progress = "generated NBV"
-
+        print(f"generated_NBV: {optimal_order}")
         # return result
         result = PcdNBV.Result()
         result.view_points = view_points.flatten().tolist()
         result.optimal_order = optimal_order.tolist()
         goal_handle.succeed()
         feedback_msg.progress = "completed"
+        print(f"finished")
         return result
 
 

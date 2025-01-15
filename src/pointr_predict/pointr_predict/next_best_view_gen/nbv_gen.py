@@ -90,8 +90,13 @@ class NBV():
             return gradient, t1_falses
         def optimal_of_axis(axis):
             filter_mean, filter_val, filter_vec = self.filtered_pred_pcd_pca
-            view_point_one = [filter_mean[0]+filter_vec[0,axis]/2,filter_mean[1]+filter_vec[1,axis]/2,filter_mean[2]+filter_vec[2,axis]/2]
-            view_point_two = [filter_mean[0]-filter_vec[0,axis]/2,filter_mean[1]-filter_vec[1,axis]/2,filter_mean[2]-filter_vec[2,axis]/2]
+            distance_multi = 1 / 0.33
+            view_point_one = [filter_mean[0]+filter_vec[0,axis]/distance_multi,
+                              filter_mean[1]+filter_vec[1,axis]/distance_multi,
+                              filter_mean[2]+filter_vec[2,axis]/distance_multi]
+            view_point_two = [filter_mean[0]-filter_vec[0,axis]/distance_multi,
+                              filter_mean[1]-filter_vec[1,axis]/distance_multi,
+                              filter_mean[2]-filter_vec[2,axis]/distance_multi]
             r = [1000, 1000+100]
             all_falses = []
             optimal_pair = []

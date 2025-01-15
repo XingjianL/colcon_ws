@@ -22,6 +22,8 @@ namespace benchbot_xarm6 {
 
         void go_home();
 
+        bool move_and_look_at(geometry_msgs::msg::Point move_goal, geometry_msgs::msg::Point look_at_goal);
+
     private:
         std::string robot_name_ = "xarm6";
         std::vector<benchbot_xarm6::setpoints> robot_setpoints_;

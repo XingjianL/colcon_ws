@@ -119,3 +119,66 @@ void benchbot_xarm6::XARM6MoveIt::go_home()
         move_group_->execute(plan);
     }
 }
+
+bool benchbot_xarm6::XARM6MoveIt::move_and_look_at(
+    geometry_msgs::msg::Point move_goal, 
+    geometry_msgs::msg::Point look_at_goal)
+{
+    geometry_msgs::msg::Pose target_pose;
+    target_pose.position = move_goal;
+    
+    // Calculate the direction vector from the move_goal to the look_at_goal
+    geometry_msgs::msg::Vector3 direction;
+    direction.x = look_at_goal.x - move_goal.x;
+    direction.y = look_at_goal.y - move_goal.y;
+    direction.z = look_at_goal.z - move_goal.z;
+
+    // Normalize the direction vector
+    double length = std::sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+    if (length > 0.0) {
+        direction.x /= length;
+        direction.y /= length;
+        direction.z /= length;
+    }
+
+    // Create a quaternion to represent the orientation
+    tf2::Quaternion quat;
+
+    // Calculate the yaw (rotation around Z-axis) using atan2
+    double yaw = std::atan2(direction.y, direction.x);
+
+    // Calculate the pitch (rotation around Y-axis) using the arctangent of the vertical component
+    double pitch = std::atan2(direction.z, std::sqrt(direction.x * direction.x + direction.y * direction.y));
+
+    // Set the roll (rotation around X-axis) to 0 because no rotation around X-axis is needed
+    double roll = 0.0;
+
+    // Set the quaternion from roll, pitch, yaw
+    quat.setRPY(roll, pitch, yaw);
+    // Set the orientation of the target pose
+    target_pose.orientation.w = quat.w();
+    target_pose.orientation.x = quat.x();
+    target_pose.orientation.y = quat.y();
+    target_pose.orientation.z = quat.z();
+
+    move_group_->clearPoseTargets();
+    move_group_->setStartStateToCurrentState();
+    move_group_->setPoseTarget(target_pose);
+    auto const [success, plan] = [this]{
+        moveit::planning_interface::MoveGroupInterface::Plan plan;
+        auto const ok = static_cast<bool>(this->move_group_->plan(plan));
+        return std::make_pair(ok, plan);
+    }();
+    if (success)
+    {
+        move_group_->execute(plan);
+        move_group_->clearPoseTargets();
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "Finished LookAt Movement");
+        return true;
+    }
+    else
+    {
+        move_group_->clearPoseTargets();
+        return false;
+    }
+}

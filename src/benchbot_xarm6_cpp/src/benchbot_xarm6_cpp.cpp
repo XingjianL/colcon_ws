@@ -70,7 +70,32 @@ int main(int argc, char ** argv)
     "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_rot.csv"
   );
   for (int i = 0; i < 40; i+=sample_gap){
-    robot1.setpoint_control(i);
+    geometry_msgs::msg::Point move_goal;
+    geometry_msgs::msg::Point look_at_goal;
+
+    int plant_id = env.GetClosestPlant(env.GetRobotID("xArm6"));
+    look_at_goal.x = 0;
+    look_at_goal.y = 0;
+    look_at_goal.z = -0.5;
+    bool success = false;
+    if (env.plant_info_[plant_id].nbv_step == 0) {
+      RCLCPP_INFO(logger, "predefined setpoint");
+      robot1.setpoint_control(i);
+      success = true;
+    }
+    for (int nbv_order : env.plant_info_[plant_id].nbv_optimal_order){
+      RCLCPP_INFO(logger, "move and look at");
+      move_goal.x = env.plant_info_[plant_id].nbv_view_points[nbv_order * 3];
+      move_goal.y = env.plant_info_[plant_id].nbv_view_points[nbv_order * 3 + 1];
+      move_goal.z = env.plant_info_[plant_id].nbv_view_points[nbv_order * 3 + 2] - 0.5;
+      success = robot1.move_and_look_at(move_goal, look_at_goal);
+      if(success){
+        break;  // successful
+      }
+    }
+    if (!success){
+      RCLCPP_INFO(logger, "No success, %d", env.plant_info_[plant_id].nbv_step);
+    }
     rclcpp::sleep_for(std::chrono::milliseconds(2500)); // wait for the robot in UE5 to settle
     for (int plant_id = 0; plant_id < 8; plant_id++){
       double platform_pos_x = plant_id;

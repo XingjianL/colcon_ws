@@ -25,6 +25,7 @@
 
 namespace benchbot_xarm6
 {
+    class NBV; // nbv.hpp
     void ParseUE5TransformString(std::string& transform, double (&result)[9]);
 
     struct PlantInfo
@@ -39,6 +40,10 @@ namespace benchbot_xarm6
         std::string plant_variant;
         uint8_t instance_segmentation_id_g;
         uint8_t instance_segmentation_id_b;
+
+        uint32_t nbv_step;
+        std::vector<int> nbv_optimal_order;
+        std::vector<float> nbv_view_points;
 
         bool operator==(const PlantInfo& rhs) const;
 
@@ -110,6 +115,9 @@ namespace benchbot_xarm6
 
         void SaveRobotImages();        
         void EnvPublishCommand(const std::string& command);
+        
+        int GetClosestPlant(int robot_id);
+        int GetRobotID(const std::string& robot_name);
 
         open3d::visualization::Visualizer visualizer;
     private:

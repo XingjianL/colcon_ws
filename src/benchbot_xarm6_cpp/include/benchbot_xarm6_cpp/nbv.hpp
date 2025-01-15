@@ -8,8 +8,12 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 
 #include "open3d/Open3D.h"
+
+#include "benchbot_xarm6_cpp/environment_info.hpp"
+
 namespace benchbot_xarm6
 {
+    struct PlantInfo; // envirnment_info.hpp
     class NBV
     {
         public:
@@ -18,7 +22,9 @@ namespace benchbot_xarm6
 
             // void waiting_for_sync();
             bool waiting_nbv_ = true;
-            void publish_point_cloud(const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc);
+            void publish_point_cloud(
+                const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc,
+                PlantInfo& plant_info);
         private:
             rclcpp::Node::SharedPtr node_;
             // rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr nbv_sub_;
@@ -33,7 +39,9 @@ namespace benchbot_xarm6
             void feedback_callback(
                 NBVGoalHandle::SharedPtr,
                 const std::shared_ptr<const NBVAction::Feedback> feedback);
-            void result_callback(const NBVGoalHandle::WrappedResult & result);
+            void result_callback(
+                const NBVGoalHandle::WrappedResult & result,
+                PlantInfo& plant_info);
             // {
             //     RCLCPP_INFO(this->get_logger(), "Received goal request with order %d", goal->order);
             //     (void)uuid;
