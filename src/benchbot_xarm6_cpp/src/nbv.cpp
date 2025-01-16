@@ -42,6 +42,8 @@ namespace benchbot_xarm6 {
         const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc,
         PlantInfo& plant_info) 
     {
+        RCLCPP_INFO(node_->get_logger(), "plant_info: %p", static_cast<void*>(&plant_info));
+
         auto goal_msg = NBVAction::Goal();
         if (!nbv_action_client->wait_for_action_server()) {
             RCLCPP_ERROR(node_->get_logger(), "NBV Action server not available after waiting");
@@ -75,7 +77,7 @@ namespace benchbot_xarm6 {
             send_goal_options.feedback_callback =
               std::bind(&NBV::feedback_callback, this, std::placeholders::_1, std::placeholders::_2);
             send_goal_options.result_callback =
-              std::bind(&NBV::result_callback, this, std::placeholders::_1, plant_info);
+              std::bind(&NBV::result_callback, this, std::placeholders::_1, std::ref(plant_info));
         auto future = nbv_action_client->async_send_goal(goal_msg, send_goal_options);
         rclcpp::spin_until_future_complete(node_, future);
         auto result = future.get();
@@ -137,6 +139,7 @@ namespace benchbot_xarm6 {
         for (auto number : plant_info.nbv_view_points) {
             ss << number << " ";
         }
+        ss << &plant_info;
         RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
     }
 

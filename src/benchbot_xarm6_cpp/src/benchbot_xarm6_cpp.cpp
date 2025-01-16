@@ -73,41 +73,56 @@ int main(int argc, char ** argv)
     geometry_msgs::msg::Point move_goal;
     geometry_msgs::msg::Point look_at_goal;
 
-    int plant_id = env.GetClosestPlant(env.GetRobotID("xArm6"));
+    int closest_plant_id = env.GetClosestPlant(env.GetRobotID("xArm6"));
     look_at_goal.x = 0;
     look_at_goal.y = 0;
-    look_at_goal.z = -0.5;
+    look_at_goal.z = -0.9;
+    move_goal.x = 0;
+    move_goal.y = 0;
+    move_goal.z = -0.5;
     bool success = false;
-    if (env.plant_info_[plant_id].nbv_step == 0) {
-      RCLCPP_INFO(logger, "predefined setpoint");
-      robot1.setpoint_control(i);
-      success = true;
-    }
-    for (int nbv_order : env.plant_info_[plant_id].nbv_optimal_order){
-      RCLCPP_INFO(logger, "move and look at");
-      move_goal.x = env.plant_info_[plant_id].nbv_view_points[nbv_order * 3];
-      move_goal.y = env.plant_info_[plant_id].nbv_view_points[nbv_order * 3 + 1];
-      move_goal.z = env.plant_info_[plant_id].nbv_view_points[nbv_order * 3 + 2] - 0.5;
-      success = robot1.move_and_look_at(move_goal, look_at_goal);
-      if(success){
-        break;  // successful
-      }
-    }
-    if (!success){
-      RCLCPP_INFO(logger, "No success, %d", env.plant_info_[plant_id].nbv_step);
-    }
+    int nbv_select = 0;
+    robot1.move_and_look_at(move_goal, look_at_goal);
+
     rclcpp::sleep_for(std::chrono::milliseconds(2500)); // wait for the robot in UE5 to settle
     for (int plant_id = 0; plant_id < 8; plant_id++){
+      // move benchbot
       double platform_pos_x = plant_id;
       BenchBot_platform.set_planar_targets(
         50 - 124.848 + 50, 200, 25, 0
       );
       BenchBot_platform.set_joints_targets(
         {"benchbot_plate", "benchbot_camera"}, 
-        {platform_pos_x * 50 + 16.785 + 100, 100.632-47}
+        {platform_pos_x * 50 + 16.785, 100.632-47-40}
       );
       rclcpp::sleep_for(std::chrono::milliseconds(1000));
       env.waiting_for_sync();
+
+      // get closest plant
+      closest_plant_id = env.GetClosestPlant(env.GetRobotID("xArm6"));
+
+      // sample for NBV
+      success = false;
+      nbv_select = 0;
+      for (int nbv_order : env.plant_info_[closest_plant_id].nbv_optimal_order){
+        RCLCPP_INFO(logger, "move and look at");
+        move_goal.x = env.plant_info_[closest_plant_id].nbv_view_points[nbv_order * 3];
+        move_goal.y = env.plant_info_[closest_plant_id].nbv_view_points[nbv_order * 3 + 1];
+        move_goal.z = env.plant_info_[closest_plant_id].nbv_view_points[nbv_order * 3 + 2] - 0.9;
+        success = robot1.move_and_look_at(move_goal, look_at_goal);
+        if(success){
+          RCLCPP_INFO(logger, "moved and look at: to %d with priority %d", nbv_order, nbv_select);
+          rclcpp::sleep_for(std::chrono::milliseconds(2000));
+          break;  // successful
+        }
+        nbv_select += 1;
+      }
+      if (!success){
+        // failed: either no optimal order (not sampled yet) or all sampled points failed
+        RCLCPP_INFO(logger, "No success, %d", env.plant_info_[closest_plant_id].nbv_step);
+      }
+      
+      // sample for image
       for (size_t i = 0; i < env.robot_info_.size(); i++){
         RCLCPP_INFO(logger, "robot names %s, %d", env.robot_info_[i].topic_name.c_str(), env.robot_info_[i].topic_name == "xArm6");
         if (env.robot_info_[i].topic_name == "xArm6"){
@@ -115,7 +130,9 @@ int main(int argc, char ** argv)
         }
       }
     
+      // save image, build point clouds, and estimate next-best-view
       if (reconstruct_point_clouds){
+        env.SaveRobotImages();
         env.BuildPointClouds(true);
         env.SavePointClouds();
         env.PredictPointCloud(nbv);
@@ -126,7 +143,7 @@ int main(int argc, char ** argv)
       env.UpdateLog();
       RCLCPP_INFO(logger, "LogUpdated");
       rclcpp::sleep_for(std::chrono::milliseconds(100));
-      break;
+      //break;
     }
   }
 

@@ -145,13 +145,20 @@ bool benchbot_xarm6::XARM6MoveIt::move_and_look_at(
     tf2::Quaternion quat;
 
     // Calculate the yaw (rotation around Z-axis) using atan2
-    double yaw = std::atan2(direction.y, direction.x);
-
+    double yaw = std::atan2(direction.y, direction.x) - M_PI_2;
+    //yaw = 0.0;
     // Calculate the pitch (rotation around Y-axis) using the arctangent of the vertical component
-    double pitch = std::atan2(direction.z, std::sqrt(direction.x * direction.x + direction.y * direction.y));
-
+    double pitch =  - std::atan2(
+                        direction.z, 
+                        std::sqrt(direction.x * direction.x + direction.y * direction.y)
+                    ) + M_PI_2;
+    pitch = 0;
     // Set the roll (rotation around X-axis) to 0 because no rotation around X-axis is needed
-    double roll = 0.0;
+    double roll =   std::atan2(
+                        direction.z, 
+                        std::sqrt(direction.x * direction.x + direction.y * direction.y)
+                    ) - M_PI_2;
+    //roll = 0;
 
     // Set the quaternion from roll, pitch, yaw
     quat.setRPY(roll, pitch, yaw);

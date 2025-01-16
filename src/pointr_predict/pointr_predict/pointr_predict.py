@@ -99,6 +99,7 @@ class PartialPCDPredictorNode(Node):
         input_pcd = np.frombuffer(input_pcd_ros2.data, dtype=np.uint8).reshape(-1,input_pcd_ros2.point_step)
         xyz = input_pcd[:,0:12].view(dtype=np.float32).reshape(-1,3)
         feedback_msg.progress = "parsed input"
+        self.received_pcd += 1
         print(f"input_pcd: {xyz.shape}")
         # prediction
         pred = self.predictor_model.inference_single_pcd(xyz,f"/home/lxianglabxing/colcon_ws/output/pcd/model_io/{self.received_pcd}")

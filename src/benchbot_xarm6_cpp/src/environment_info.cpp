@@ -217,6 +217,7 @@ namespace benchbot_xarm6 {
     int EnvironmentInfo::GetClosestPlant(int robot_id){
         double closest_dist = 1e9;
         int closest_plant = 0;
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "base_tf: %f, %f, %f",robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
         for (size_t i = 0; i < plant_info_.size(); i++){
             auto dist = plant_info_[i].CalcDistance(robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
             if (dist < closest_dist) {
@@ -224,6 +225,8 @@ namespace benchbot_xarm6 {
                 closest_plant = i;
             }
         }
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "ID_B: %d, dist: %f", plant_info_[closest_plant].instance_segmentation_id_b, closest_dist);
+
         return closest_plant;
     }
     int EnvironmentInfo::GetRobotID(const std::string& robot_name){
@@ -242,7 +245,7 @@ namespace benchbot_xarm6 {
         int closest_plant = GetClosestPlant(robot_id);
         
         for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
-            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial");
+            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial for %p", static_cast<void*>(&plant_info_[closest_plant]));
             auto pcd_copy = std::make_shared<open3d::geometry::PointCloud>(pc.o3d_pc->points_);
             Eigen::Vector3d translation_vector(
                -robot_info_[robot_id].base_transforms[0]/100,
@@ -256,7 +259,7 @@ namespace benchbot_xarm6 {
             open3d::io::WritePointCloudOption o3d_option(true);
             std::string filename_ = std::to_string(pc_build_count_-1) + "temp.pcd";
             open3d::io::WritePointCloud(filepath + filename_, *pcd_copy, o3d_option);
-
+            pcd_copy = pcd_copy->VoxelDownSample(0.001);
             auto [filtered_pcd, inlier_ind] = pcd_copy->RemoveRadiusOutliers(16, 0.05);
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Translate %f %f %f", translation_vector.x(), translation_vector.y(), translation_vector.z());
             
