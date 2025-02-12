@@ -14,6 +14,12 @@ namespace benchbot_xarm6
         std::shared_ptr<open3d::geometry::PointCloud> o3d_pc;
         std::tuple<uint8_t, uint8_t, uint8_t> segment_color;
 
+        // nbv
+        int nbv_new_points;
+        uint32_t nbv_step;
+        std::vector<int> nbv_optimal_order;
+        std::vector<float> nbv_view_points;
+        std::vector<float> nbv_view_center;
         //open3d::camera::PinholeCameraIntrinsic intrinsics_;
 
         bool buildPointCloud(
@@ -21,8 +27,9 @@ namespace benchbot_xarm6
             std::tuple<uint8_t, uint8_t, uint8_t> color, 
             const Eigen::Matrix4d &transform,
             const open3d::camera::PinholeCameraIntrinsic &intrinsics_,
-            std::string& save_intermediate,
-            open3d::visualization::Visualizer &visualizer);
+            std::string& save_intermediate//,
+            //open3d::visualization::Visualizer &visualizer
+            );
         void savePointCloud(const std::string& filepath);
 
     private:

@@ -43,8 +43,8 @@ namespace benchbot_xarm6
             const Eigen::Matrix4d &transform,
             uint8_t instance_id_g, 
             uint8_t instance_id_b,
-            std::string& save_intermediate,
-            open3d::visualization::Visualizer& visualizer
+            std::string& save_intermediate//,
+            //open3d::visualization::Visualizer& visualizer
             );
         void save_images(std::string path);
         void clear_images();

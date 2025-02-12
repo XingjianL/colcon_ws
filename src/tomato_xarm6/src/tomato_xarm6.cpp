@@ -171,7 +171,7 @@ int main(int argc, char ** argv)
         // benchbot set position
         // set the base position (x, constant (y), constant (height), constant (rotation))
         benchbot_platform.set_planar_targets(
-          platform_pos_x * 50, platform_pos_y * 175, 25, 0
+          platform_pos_x * 25 + 100, platform_pos_y * 175 + 175, 25, 0
         );
         // set the camera arm position over the horizontal bar (y, height(constant) )
         // this provides a more realistic visual, only using the planar also works

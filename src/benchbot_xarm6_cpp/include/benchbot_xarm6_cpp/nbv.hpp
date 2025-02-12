@@ -19,12 +19,16 @@ namespace benchbot_xarm6
         public:
             NBV(std::string &node_name);
             ~NBV();
-
+            
             // void waiting_for_sync();
             bool waiting_nbv_ = true;
             void publish_point_cloud(
-                const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc,
-                PlantInfo& plant_info);
+                const std::shared_ptr<open3d::geometry::PointCloud>& pred_pc,
+                const std::shared_ptr<open3d::geometry::PointCloud>& nbv_pc,
+                PlantInfo& plant_info,
+                std::tuple<uint8_t, uint8_t, uint8_t> segment_color,
+                bool wait);
+
         private:
             rclcpp::Node::SharedPtr node_;
             // rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr nbv_sub_;
@@ -41,7 +45,8 @@ namespace benchbot_xarm6
                 const std::shared_ptr<const NBVAction::Feedback> feedback);
             void result_callback(
                 const NBVGoalHandle::WrappedResult & result,
-                PlantInfo& plant_info);
+                PlantInfo& plant_info,
+                std::tuple<uint8_t, uint8_t, uint8_t> segment_color);
             // {
             //     RCLCPP_INFO(this->get_logger(), "Received goal request with order %d", goal->order);
             //     (void)uuid;

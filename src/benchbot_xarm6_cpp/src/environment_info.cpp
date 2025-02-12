@@ -21,7 +21,7 @@ namespace benchbot_xarm6 {
             RCLCPP_WARN(rclcpp::get_logger("benchbot_xarm_cpp"), "Incorrect Transform Message: %s", transform.c_str());
             return;
         }
-        result[0] = std::stod(tokens[1]); // negative because x-axis in UE is in opposite direction than ROS
+        result[0] = -std::stod(tokens[1]); // negative because x-axis in UE is in opposite direction than ROS
         result[1] = std::stod(tokens[2]);
         result[2] = std::stod(tokens[3]);
         result[3] = std::stod(tokens[4]);
@@ -42,7 +42,7 @@ namespace benchbot_xarm6 {
         //robot_info_.resize(1);
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-        visualizer.CreateVisualizerWindow("RGBD Image", 640, 480);
+        //visualizer.CreateVisualizerWindow("RGBD Image", 640, 480);
         env_publisher = node_->create_publisher<std_msgs::msg::String>("/ue5/game_commands", 10);
     }
 
@@ -86,6 +86,7 @@ namespace benchbot_xarm6 {
             // check header aligns with PLANTMARKER ("Plant")
             if (result[0][i].substr(0, PLANTMARKER.length()) == PLANTMARKER) {
                 PlantInfo plant;
+                plant.creation_time = creation_time_;
                 plant.ParseData(result[1][i]);
                 plant.id = i;
 
@@ -147,7 +148,7 @@ namespace benchbot_xarm6 {
         plant_info_.clear();
     }
 
-    void EnvironmentInfo::BuildPointClouds(bool save_intermediate) {
+    void EnvironmentInfo::BuildPointClouds(bool save_intermediate, bool closest_plant) {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Started");
         int robot_id = GetRobotID("xArm6");
         robot_info_[robot_id].image_subscriber->under_recon_ = true;
@@ -171,15 +172,33 @@ namespace benchbot_xarm6 {
         q.normalize();
         Eigen::Matrix3d rot = q.toRotationMatrix();
         transformation_mat_.block<3, 3>(0, 0) = rot;
-        transformation_mat_(0, 3) = translation.x + robot_info_[robot_id].base_transforms[0]/100.0;
-        transformation_mat_(1, 3) = translation.y + robot_info_[robot_id].base_transforms[1]/100.0;
-        transformation_mat_(2, 3) = translation.z + robot_info_[robot_id].base_transforms[2]/100.0;
+        transformation_mat_(0, 3) = translation.x - robot_info_[robot_id].base_transforms[0]/100.0;
+        transformation_mat_(1, 3) = translation.y - robot_info_[robot_id].base_transforms[1]/100.0;
+        transformation_mat_(2, 3) = translation.z + robot_info_[robot_id].base_transforms[2]/100.0 - 0.235;
         
         std::string save_intermediate_path = "";
         
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: %f %f", 
             robot_info_[robot_id].base_transforms[0]/100.0, robot_info_[robot_id].base_transforms[1]/100.0);
+        
+        if (closest_plant && !save_intermediate){
+            int robot_id = GetRobotID("xArm6");
+            auto& plant = plant_info_[GetClosestPlant(robot_id)];
+            save_intermediate_path = "output/pcd/plant_" + std::to_string(creation_time_.seconds()) + "/" +
+                    std::to_string(plant.id) + "/" + plant.plant_variant;
+            std::filesystem::path dir_path = save_intermediate_path;
+            std::filesystem::create_directories(dir_path);
+            save_intermediate_path = save_intermediate_path + "/" + std::to_string(pc_build_count_);
+            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: processing to pc, %ld", plant.unique_point_clouds.size());
+            robot_info_[robot_id].image_subscriber->process_to_pc(
+                plant.unique_point_clouds, 
+                transformation_mat_,
+                plant.instance_segmentation_id_g, plant.instance_segmentation_id_b,
+                save_intermediate_path
+                );
+        }
         for(auto& plant : plant_info_){
+            save_intermediate_path = "";
             if (save_intermediate) {
                 save_intermediate_path = "output/pcd/plant_" + std::to_string(creation_time_.seconds()) + "/" +
                     std::to_string(plant.id) + "/" + plant.plant_variant;
@@ -191,10 +210,9 @@ namespace benchbot_xarm6 {
                 plant.unique_point_clouds, 
                 transformation_mat_,
                 plant.instance_segmentation_id_g, plant.instance_segmentation_id_b,
-                save_intermediate_path,
-                visualizer);
+                save_intermediate_path
+                );
         }
-        
         robot_info_[robot_id].image_subscriber->under_recon_ = false;
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Finished");
         
@@ -217,7 +235,7 @@ namespace benchbot_xarm6 {
     int EnvironmentInfo::GetClosestPlant(int robot_id){
         double closest_dist = 1e9;
         int closest_plant = 0;
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "base_tf: %f, %f, %f",robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
+        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "base_tf: %f, %f, %f",robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
         for (size_t i = 0; i < plant_info_.size(); i++){
             auto dist = plant_info_[i].CalcDistance(robot_info_[robot_id].base_transforms[0],robot_info_[robot_id].base_transforms[1],robot_info_[robot_id].base_transforms[2]);
             if (dist < closest_dist) {
@@ -225,7 +243,7 @@ namespace benchbot_xarm6 {
                 closest_plant = i;
             }
         }
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "ID_B: %d, dist: %f", plant_info_[closest_plant].instance_segmentation_id_b, closest_dist);
+        //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "ID_B: %d, dist: %f", plant_info_[closest_plant].instance_segmentation_id_b, closest_dist);
 
         return closest_plant;
     }
@@ -237,28 +255,31 @@ namespace benchbot_xarm6 {
         }
         return -1;
     }
-
-    void EnvironmentInfo::PredictPointCloud(const std::shared_ptr<NBV>& nbv_) {
+    void EnvironmentInfo::PredictPointCloud(
+        const std::shared_ptr<NBV>& nbv_, 
+        int color_id,
+        bool wait_for_nbv) 
+    {
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Started");
         
         int robot_id = GetRobotID("xArm6");
         int closest_plant = GetClosestPlant(robot_id);
-        
+        plant_info_[closest_plant].CombinePointClouds();
         for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
+            if (std::get<0>(pc.segment_color) != color_id && color_id != -1) {
+                continue;
+            }
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial for %p", static_cast<void*>(&plant_info_[closest_plant]));
             auto pcd_copy = std::make_shared<open3d::geometry::PointCloud>(pc.o3d_pc->points_);
+            // normalizing to origin
             Eigen::Vector3d translation_vector(
-               -robot_info_[robot_id].base_transforms[0]/100,
-               -robot_info_[robot_id].base_transforms[1]/100, 
-               -0.235   // height of plant in the simulation
+                robot_info_[robot_id].base_transforms[0]/100,
+                robot_info_[robot_id].base_transforms[1]/100, 
+                0.0  // height of plant in the simulation
             );
             pcd_copy->Translate(translation_vector);
-            std::string filepath = "output/pcd/";
-            std::filesystem::path dir_path = filepath;
-            std::filesystem::create_directories(dir_path);
-            open3d::io::WritePointCloudOption o3d_option(true);
-            std::string filename_ = std::to_string(pc_build_count_-1) + "temp.pcd";
-            open3d::io::WritePointCloud(filepath + filename_, *pcd_copy, o3d_option);
+
+            // basic down sampling and filters
             pcd_copy = pcd_copy->VoxelDownSample(0.001);
             auto [filtered_pcd, inlier_ind] = pcd_copy->RemoveRadiusOutliers(16, 0.05);
             RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Translate %f %f %f", translation_vector.x(), translation_vector.y(), translation_vector.z());
@@ -273,8 +294,10 @@ namespace benchbot_xarm6 {
             if (filtered_pcd->points_.size() > 2000){
                 filtered_pcd = filtered_pcd->FarthestPointDownSample(2000);
             }
-            nbv_->publish_point_cloud(filtered_pcd, plant_info_[closest_plant]);
+            plant_info_[closest_plant].combined_point_cloud->Translate(translation_vector);
+            nbv_->publish_point_cloud(filtered_pcd,plant_info_[closest_plant].combined_point_cloud, plant_info_[closest_plant], pc.segment_color, wait_for_nbv);
         }
+        plant_info_[closest_plant].combined_point_cloud->Clear();
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Finished");
 
     }
@@ -333,9 +356,8 @@ namespace benchbot_xarm6 {
     //MARK: PlantInfo
 
     PlantInfo::PlantInfo() {
-        creation_time = rclcpp::Clock(RCL_ROS_TIME).now();
         csv_header = "Plant_Name,Plant_Variant,T_X,T_Y,T_Z,R,P,Y,S_X,S_Y,S_Z,ID_G,ID_B,Notes\n";
-        nbv_step = 0;
+        combined_point_cloud = std::make_shared<open3d::geometry::PointCloud>();
     }
 
     void PlantInfo::ParseData(const std::string &data) {
@@ -347,6 +369,7 @@ namespace benchbot_xarm6 {
         instance_segmentation_id_g = static_cast<uint8_t>(std::stof(tokens[3])+0.1);//static_cast<uint8_t>( 255.0 * std::stof(tokens[3])+0.5);
         instance_segmentation_id_b = static_cast<uint8_t>(std::stof(tokens[4])+0.1);
         plant_variant = tokens[6];
+        
     }
 
     bool PlantInfo::operator==(const PlantInfo &rhs) const {
@@ -359,6 +382,7 @@ namespace benchbot_xarm6 {
     }
 
     void PlantInfo::UpdateLog() {
+        // add an row in the csv log file
         double plant_transforms[9] = {0,0,0,0,0,0,0,0,0};
         ParseUE5TransformString(transforms, plant_transforms);
         csv_data += plant_name + ",";
@@ -370,18 +394,44 @@ namespace benchbot_xarm6 {
         csv_data += std::to_string(instance_segmentation_id_g);
         csv_data += ",";
         csv_data += std::to_string(instance_segmentation_id_b);
-        csv_data += ",";
-        csv_data += std::to_string(nbv_step);//std::string(nbv_optimal_order.begin(), nbv_optimal_order.end());
+        // csv_data += ",";
+        // csv_data += std::to_string(nbv_step);//std::string(nbv_optimal_order.begin(), nbv_optimal_order.end());
         csv_data += "\n";
     }
 
     double PlantInfo::CalcDistance(double base_t_x, double base_t_y, double base_t_z) {
+        // returns the euclidean distance of this plant to input location
         double plant_transforms[9] = {0,0,0,0,0,0,0,0,0};
         ParseUE5TransformString(transforms, plant_transforms);
         double dist = sqrt( pow(plant_transforms[0]-base_t_x,2) + 
                             pow(plant_transforms[1]-base_t_y,2) +
                             pow(plant_transforms[2]-base_t_z,2));
         return dist;
+    }
+
+    int PlantInfo::OptimalNBV() {
+        // return the index of the optimal NBV pipeline (plant organs)
+        // based on the (new predicted points / the current reconstruction)
+        int optimal_nbv_ind = -1;
+        double max_information_gain = 0;
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "PlantInfo::OptimalNBV: num of nbvs %ld", unique_point_clouds.size());
+        for (size_t i = 0; i < unique_point_clouds.size(); i++) {
+            double temp = unique_point_clouds[i].nbv_new_points / (double)unique_point_clouds[i].o3d_pc->points_.size();
+            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "PlantInfo::OptimalNBV: gain for %ld: %f",i, temp);
+            if (temp > max_information_gain) {
+                max_information_gain = temp;
+                optimal_nbv_ind = i;
+            }
+        }
+        return optimal_nbv_ind;
+    }
+
+    void PlantInfo::CombinePointClouds() {
+        combined_point_cloud->Clear();
+        for(auto& pc : unique_point_clouds) {
+            combined_point_cloud->points_.insert(combined_point_cloud->points_.end(), pc.o3d_pc->points_.begin(), pc.o3d_pc->points_.end());
+        }
+        combined_point_cloud->VoxelDownSample(0.001);
     }
 
     //MARK: RobotInfo

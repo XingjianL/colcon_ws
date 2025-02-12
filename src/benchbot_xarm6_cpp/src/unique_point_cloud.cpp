@@ -14,6 +14,7 @@ namespace benchbot_xarm6
             std::to_string(std::get<1>(segment_color)) + "_" + 
             std::to_string(std::get<2>(segment_color)) + ".pcd";
         pc_updated = false;
+        nbv_new_points = 0;
     }
 
     UniquePointCloud::UniquePointCloud(std::tuple<uint8_t, uint8_t, uint8_t> segment_color)//, open3d::camera::PinholeCameraIntrinsic intrinsics)
@@ -24,6 +25,10 @@ namespace benchbot_xarm6
             std::to_string(std::get<0>(segment_color)) + "_" + 
             std::to_string(std::get<1>(segment_color)) + "_" + 
             std::to_string(std::get<2>(segment_color)) + ".pcd";
+        pc_updated = false;
+        nbv_new_points = 0;
+
+
     }
 
     UniquePointCloud::~UniquePointCloud()
@@ -35,8 +40,9 @@ namespace benchbot_xarm6
         std::tuple<uint8_t, uint8_t, uint8_t> color, 
         const Eigen::Matrix4d & transform,
         const open3d::camera::PinholeCameraIntrinsic &intrinsics_,
-        std::string& save_intermediate,
-        open3d::visualization::Visualizer& visualizer)
+        std::string& save_intermediate//,
+        //open3d::visualization::Visualizer& visualizer
+        )
     {
         if (color != segment_color) {
             return false;
@@ -58,34 +64,41 @@ namespace benchbot_xarm6
             std::cerr << "Incorrect depth type" << std::endl;
         }
 
+        //std::cout << "creating o3d_rgb" << std::endl;
         open3d::geometry::Image o3d_rgb_image;
         o3d_rgb_image.Prepare(color_img.cols, color_img.rows, color_img.channels(), 1);
         std::memcpy(o3d_rgb_image.data_.data(), color_img.data, o3d_rgb_image.data_.size());
-
+        
+        //std::cout << "creating o3d_depth" << std::endl;
         open3d::geometry::Image o3d_depth_image;
         o3d_depth_image.Prepare(depth_masked.cols, depth_masked.rows, depth_masked.channels(), 4);
         std::memcpy(o3d_depth_image.data_.data(), depth_masked.data, o3d_depth_image.data_.size());
         
-        auto rgbd_image = open3d::geometry::RGBDImage::CreateFromColorAndDepth(o3d_rgb_image, o3d_depth_image, 100.0, 10.0, false);
-
-        visualizer.ClearGeometries();
-        visualizer.AddGeometry(rgbd_image);
-        visualizer.UpdateGeometry();
-        visualizer.PollEvents();
-        visualizer.UpdateRender();
+        //std::cout << "creating o3d_rgbd" << std::endl;
+        auto rgbd_image = open3d::geometry::RGBDImage::CreateFromColorAndDepth(o3d_rgb_image, o3d_depth_image, 100.0, 1.5, false);
+        // visualizer.ClearGeometries();
+        // visualizer.AddGeometry(rgbd_image);
+        // visualizer.UpdateGeometry();
+        // visualizer.PollEvents();
+        // visualizer.UpdateRender();
         
         //visualizer.Run();
-
+        //std::cout << "creating o3d_pcd" << std::endl;
         auto pcd = open3d::geometry::PointCloud::CreateFromRGBDImage(
             *rgbd_image, intrinsics_
         );
-
+        //std::cout << "buildPCD: " << pcd->points_.size() << std::endl;
+        if (pcd->points_.size() > 20000) {
+            // pcd = pcd->RandomDownSample(0.1);
+            //std::cout << "buildPCD(randDownsample): " << pcd->points_.size() << std::endl;
+        }
+        
         pcd->Transform(transform);
 
         // save point cloud of this particular rgbd image
-        if (!save_intermediate.empty() && pcd->points_.size() > 256)
+        if (!save_intermediate.empty() && pcd->points_.size() > 300)
         {
-            std::string filepath = save_intermediate + "_" + std::to_string(append_count_) + "_" + filename_;
+            std::string filepath = save_intermediate + "_Intermediate_" + std::to_string(append_count_) + "_" + filename_;
             open3d::io::WritePointCloudOption o3d_option(true);
             open3d::io::WritePointCloud(filepath, *pcd, o3d_option);
             append_count_ += 1;
@@ -109,18 +122,19 @@ namespace benchbot_xarm6
         pc_updated = true;
         o3d_pc->points_.insert(o3d_pc->points_.end(), pc->points_.begin(), pc->points_.end());
         o3d_pc->colors_.insert(o3d_pc->colors_.end(), pc->colors_.begin(), pc->colors_.end());
-        if (o3d_pc->points_.size() > 1'000'000) {
-            o3d_pc->RandomDownSample(0.05);
+        // if (o3d_pc->points_.size() > 200'000) {
+        //     o3d_pc = o3d_pc->RandomDownSample(0.2);
+        // }
+        if (o3d_pc->points_.size() > 200'000) {
+            o3d_pc = o3d_pc->VoxelDownSample(0.001);
         }
-        if (o3d_pc->points_.size() > 50'000) {
-            o3d_pc->VoxelDownSample(0.005);
-        }
+        
         return true;
     }
 
     void UniquePointCloud::savePointCloud(const std::string& filepath)
     {
-        if (o3d_pc->points_.size() < 3000) {
+        if (o3d_pc->points_.size() < 1280) {
             //std::cout << "not enough points to save: " << filename_ << " " << o3d_pc->points_.size() << std::endl;
             return;
         }
@@ -135,6 +149,7 @@ namespace benchbot_xarm6
         
         //std::cout << "savePointCloud: " << filename_ << " " << o3d_pc->points_.size() << std::endl;
         open3d::io::WritePointCloudOption o3d_option(true);
-        open3d::io::WritePointCloud(filepath + filename_, *o3d_pc, o3d_option);
+        o3d_pc = o3d_pc->VoxelDownSample(0.001);
+        open3d::io::WritePointCloud(filepath + "_FinalComplete_" + filename_, *o3d_pc, o3d_option);
     }
 }

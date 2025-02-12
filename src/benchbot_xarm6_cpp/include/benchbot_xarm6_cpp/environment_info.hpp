@@ -41,13 +41,13 @@ namespace benchbot_xarm6
         uint8_t instance_segmentation_id_g;
         uint8_t instance_segmentation_id_b;
 
-        uint32_t nbv_step;
-        std::vector<int> nbv_optimal_order;
-        std::vector<float> nbv_view_points;
+
 
         bool operator==(const PlantInfo& rhs) const;
 
         std::vector<UniquePointCloud> unique_point_clouds;
+        std::shared_ptr<open3d::geometry::PointCloud> combined_point_cloud;
+        
         void ParseData(const std::string& data);
 
         std::string csv_header;
@@ -55,6 +55,8 @@ namespace benchbot_xarm6
         void UpdateLog();
 
         double CalcDistance(double base_t_x, double base_t_y, double base_t_z);
+        int OptimalNBV();
+        void CombinePointClouds();
     };
     struct RobotInfo
     {
@@ -106,9 +108,9 @@ namespace benchbot_xarm6
         std::ofstream plant_log_file_;
 
         void clear();
-        void BuildPointClouds(bool save_intermediate);
+        void BuildPointClouds(bool save_intermediate, bool closest_plant);
         void SavePointClouds();
-        void PredictPointCloud(const std::shared_ptr<NBV>& nbv_);
+        void PredictPointCloud(const std::shared_ptr<NBV>& nbv_, int id, bool wait_for_nbv);
 
         void UpdateLog();
         void SaveLog();
@@ -119,7 +121,7 @@ namespace benchbot_xarm6
         int GetClosestPlant(int robot_id);
         int GetRobotID(const std::string& robot_name);
 
-        open3d::visualization::Visualizer visualizer;
+        //open3d::visualization::Visualizer visualizer;
     private:
         const std::string PLANTMARKER = "Plant";
         const std::string ROBOTMARKER = "Robot";

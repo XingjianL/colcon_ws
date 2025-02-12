@@ -110,7 +110,7 @@ namespace tomato_xarm6
         o3d_pc->points_.insert(o3d_pc->points_.end(), pc->points_.begin(), pc->points_.end());
         o3d_pc->colors_.insert(o3d_pc->colors_.end(), pc->colors_.begin(), pc->colors_.end());
         if (o3d_pc->points_.size() > 1'000'000) {
-            o3d_pc->RandomDownSample(0.05);
+            //o3d_pc->RandomDownSample(0.05);
         }
         if (o3d_pc->points_.size() > 50'000) {
             o3d_pc->VoxelDownSample(0.005);
@@ -132,7 +132,7 @@ namespace tomato_xarm6
         if (!std::filesystem::exists(path)) {
             std::filesystem::create_directories(path);
         }
-        
+        o3d_pc = o3d_pc->VoxelDownSample(0.005);
         //std::cout << "savePointCloud: " << filename_ << " " << o3d_pc->points_.size() << std::endl;
         open3d::io::WritePointCloudOption o3d_option(true);
         open3d::io::WritePointCloud(filepath + filename_, *o3d_pc, o3d_option);

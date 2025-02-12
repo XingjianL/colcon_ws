@@ -128,7 +128,7 @@ namespace benchbot_xarm6 {
             return;
         }
         
-        RCLCPP_INFO(node_->get_logger(), "RGBDImageCallback");
+        //RCLCPP_INFO(node_->get_logger(), "RGBDImageCallback");
         RGBImageCallback(msg_color);
         SegmentImageCallback(msg_segment);
         DepthImageCallback(msg_depth);
@@ -142,7 +142,7 @@ namespace benchbot_xarm6 {
             const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth,
             const sensor_msgs::msg::Image::ConstSharedPtr& msg_depth1)
     {
-        RCLCPP_INFO(node_->get_logger(), "StereoImageCallback");
+        //RCLCPP_INFO(node_->get_logger(), "StereoImageCallback");
         cv_img_ = cv_bridge::toCvShare(msg_color, "bgr8")->image.clone();
         cv_img1_ = cv_bridge::toCvShare(msg_color1, "bgr8")->image.clone();
         cv_img_depth_ = cv_bridge::toCvShare(msg_depth, "32FC1")->image.clone();
@@ -181,12 +181,12 @@ namespace benchbot_xarm6 {
     void ImageSubscriber::waiting_for_sync()
     {
         //clear_images();
-        RCLCPP_INFO(node_->get_logger(), "clearing image topics");
+        //RCLCPP_INFO(node_->get_logger(), "clearing image topics");
         std::unique_lock<std::mutex> lock(waiting_msg_mutex);
         lock.unlock();
         rgbd_sync_.reset();
         stereo_sync_.reset();
-        RCLCPP_INFO(node_->get_logger(), "clearing stereo topics");
+        //RCLCPP_INFO(node_->get_logger(), "clearing stereo topics");
         stereo_sync_ = std::make_shared<message_filters::Synchronizer<ApproxTimeSyncPolicyStereo>>(
             ApproxTimeSyncPolicyStereo(1),
             sync_sub_color_, sync_sub_color1_, sync_sub_depth_, sync_sub_depth1_
@@ -195,7 +195,7 @@ namespace benchbot_xarm6 {
             std::bind(&ImageSubscriber::StereoImageCallback, this, 
                 std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,std::placeholders::_4));
 
-        RCLCPP_INFO(node_->get_logger(), "clearing rgbd topics");
+        //RCLCPP_INFO(node_->get_logger(), "clearing rgbd topics");
         rgbd_sync_ = std::make_shared<message_filters::Synchronizer<ApproxTimeSyncPolicyRGBD>>(
             ApproxTimeSyncPolicyRGBD(1),
             sync_sub_color_, sync_sub_segment_, sync_sub_depth_
@@ -208,9 +208,9 @@ namespace benchbot_xarm6 {
         lock.lock();
         while((capture_both_ && (waiting_msg_rgbd || waiting_msg_stereo)) ||
             (!capture_both_ && (waiting_msg_rgbd && waiting_msg_stereo))){
-            RCLCPP_INFO(node_->get_logger(), "waiting for sync - Image");
+            //RCLCPP_INFO(node_->get_logger(), "waiting for sync - Image");
             lock.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
             //executor_->spin_some();
             lock.lock();
         }
@@ -229,8 +229,8 @@ namespace benchbot_xarm6 {
         std::vector<UniquePointCloud>& unique_pcs, 
         const Eigen::Matrix4d &transform,
         uint8_t instance_id_g, uint8_t instance_id_b,
-        std::string& save_intermediate,
-        open3d::visualization::Visualizer& visualizer
+        std::string& save_intermediate//,
+        //open3d::visualization::Visualizer& visualizer
         )
     {
         if (rgb_image_.empty() || cv_img_segment_.empty() || cv_img_depth_.empty()) {
@@ -239,7 +239,7 @@ namespace benchbot_xarm6 {
         }
 
         auto rgb_image = rgb_image_.clone();
-        
+        auto seg_image = cv_img_segment_.clone();
         auto depth_cmeters = cv_img_depth_.clone();
         // build point cloud for each unique color
         for (auto uniqueColor : uniqueColors_)
@@ -252,12 +252,13 @@ namespace benchbot_xarm6 {
             for (auto& unique_pc : unique_pcs) {
                 
                 added = unique_pc.buildPointCloud(
-                    depth_cmeters, cv_img_segment_, rgb_image, 
+                    depth_cmeters, seg_image, rgb_image, 
                     uniqueColor, 
                     transform,
                     intrinsics_,
-                    save_intermediate,
-                    visualizer);
+                    save_intermediate//,
+                    //visualizer
+                    );
                 if (added) 
                 {
                     // RCLCPP_INFO(node_->get_logger(), 
@@ -277,8 +278,9 @@ namespace benchbot_xarm6 {
                     uniqueColor, 
                     transform,
                     intrinsics_,
-                    save_intermediate,
-                    visualizer);
+                    save_intermediate//,
+                    //visualizer
+                    );
             }
             //RCLCPP_INFO(node_->get_logger(), "num of point clouds: %ld", o3d_pc_vector_.size());
             //convert_to_ros_pointcloud(*o3d_pc, ros_pc, callback_time);

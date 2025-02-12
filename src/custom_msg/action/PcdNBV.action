@@ -1,6 +1,12 @@
-sensor_msgs/PointCloud2 input_pcd
+# nbv_input_pcd: point cloud for nbv filtering (complete plant)
+# pred_input_pcd: point cloud for prediction model (plant organs)
+sensor_msgs/PointCloud2 pred_input_pcd
+sensor_msgs/PointCloud2 nbv_input_pcd
+string save_prefix
 ---
 float32[] view_points
+float32[] view_center
 int32[] optimal_order
+int32 num_new_points
 ---
 string progress

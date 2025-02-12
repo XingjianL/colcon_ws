@@ -21,7 +21,6 @@ namespace benchbot_xarm6 {
         );
     }
     NBV::~NBV() {
-
     }
     // void NBV::waiting_for_sync(){
     //     waiting_nbv_ = true;
@@ -39,49 +38,95 @@ namespace benchbot_xarm6 {
     // }
 
     void NBV::publish_point_cloud(
-        const std::shared_ptr<open3d::geometry::PointCloud>& o3d_pc,
-        PlantInfo& plant_info) 
+        const std::shared_ptr<open3d::geometry::PointCloud>& pred_pc,
+        const std::shared_ptr<open3d::geometry::PointCloud>& nbv_pc,
+        PlantInfo& plant_info,
+        std::tuple<uint8_t, uint8_t, uint8_t> segment_color,
+        bool wait_for_nbv) 
     {
         RCLCPP_INFO(node_->get_logger(), "plant_info: %p", static_cast<void*>(&plant_info));
-
+        waiting_nbv_ = true;
         auto goal_msg = NBVAction::Goal();
         if (!nbv_action_client->wait_for_action_server()) {
             RCLCPP_ERROR(node_->get_logger(), "NBV Action server not available after waiting");
             rclcpp::shutdown();
         }
-        goal_msg.input_pcd.width = o3d_pc->points_.size();
-        goal_msg.input_pcd.is_dense = false;
-        goal_msg.input_pcd.is_bigendian = false;
-        sensor_msgs::PointCloud2Modifier modifier(goal_msg.input_pcd);
-        modifier.setPointCloud2FieldsByString(1, "xyz");
-        modifier.resize(o3d_pc->points_.size());
-        sensor_msgs::PointCloud2Iterator<float> iter_x(goal_msg.input_pcd, "x");
-        sensor_msgs::PointCloud2Iterator<float> iter_y(goal_msg.input_pcd, "y");
-        sensor_msgs::PointCloud2Iterator<float> iter_z(goal_msg.input_pcd, "z");
-        RCLCPP_INFO(node_->get_logger(),"partial publish: %ld", o3d_pc->points_.size());
-        for (size_t i = 0; i < o3d_pc->points_.size(); ++i, ++iter_x, ++iter_y, ++iter_z)//, ++iter_r, ++iter_g, ++iter_b)
+        std::string save_prefix = "output/pcd/plant_" + std::to_string(plant_info.creation_time.seconds()) + "/" +
+            std::to_string(plant_info.id) + "/" + plant_info.plant_variant + "/" + std::to_string(std::get<0>(segment_color)) + "_" + 
+            std::to_string(std::get<1>(segment_color)) + "_" + std::to_string(std::get<2>(segment_color));
+        goal_msg.save_prefix = save_prefix;
+
         {
-            const Eigen::Vector3d &point = o3d_pc->points_[i];
-            //const Eigen::Vector3d &color = o3d_pc->colors_[i];
-            //
-            *iter_x = point.x();
-            *iter_y = point.y();
-            *iter_z = point.z();
-            // *iter_r = static_cast<uint8_t>(color.x() * 255.0);
-            // *iter_g = static_cast<uint8_t>(color.y() * 255.0);
-            // *iter_b = static_cast<uint8_t>(color.z() * 255.0);
+            goal_msg.nbv_input_pcd.width = nbv_pc->points_.size();
+            goal_msg.nbv_input_pcd.is_dense = false;
+            goal_msg.nbv_input_pcd.is_bigendian = false;
+            sensor_msgs::PointCloud2Modifier modifier(goal_msg.nbv_input_pcd);
+            modifier.setPointCloud2FieldsByString(1, "xyz");
+            modifier.resize(nbv_pc->points_.size());
+            sensor_msgs::PointCloud2Iterator<float> iter_x(goal_msg.nbv_input_pcd, "x");
+            sensor_msgs::PointCloud2Iterator<float> iter_y(goal_msg.nbv_input_pcd, "y");
+            sensor_msgs::PointCloud2Iterator<float> iter_z(goal_msg.nbv_input_pcd, "z");
+            RCLCPP_INFO(node_->get_logger(),"partial publish: %ld", nbv_pc->points_.size());
+            for (size_t i = 0; i < nbv_pc->points_.size(); ++i, ++iter_x, ++iter_y, ++iter_z)//, ++iter_r, ++iter_g, ++iter_b)
+            {
+                const Eigen::Vector3d &point = pred_pc->points_[i];
+                //const Eigen::Vector3d &color = o3d_pc->colors_[i];
+                //
+                *iter_x = point.x();
+                *iter_y = point.y();
+                *iter_z = point.z();
+                // *iter_r = static_cast<uint8_t>(color.x() * 255.0);
+                // *iter_g = static_cast<uint8_t>(color.y() * 255.0);
+                // *iter_b = static_cast<uint8_t>(color.z() * 255.0);
+            }
         }
+        {
+            goal_msg.pred_input_pcd.width = pred_pc->points_.size();
+            goal_msg.pred_input_pcd.is_dense = false;
+            goal_msg.pred_input_pcd.is_bigendian = false;
+            sensor_msgs::PointCloud2Modifier modifier(goal_msg.pred_input_pcd);
+            modifier.setPointCloud2FieldsByString(1, "xyz");
+            modifier.resize(pred_pc->points_.size());
+            sensor_msgs::PointCloud2Iterator<float> iter_x(goal_msg.pred_input_pcd, "x");
+            sensor_msgs::PointCloud2Iterator<float> iter_y(goal_msg.pred_input_pcd, "y");
+            sensor_msgs::PointCloud2Iterator<float> iter_z(goal_msg.pred_input_pcd, "z");
+            RCLCPP_INFO(node_->get_logger(),"partial publish: %ld", pred_pc->points_.size());
+            for (size_t i = 0; i < pred_pc->points_.size(); ++i, ++iter_x, ++iter_y, ++iter_z)//, ++iter_r, ++iter_g, ++iter_b)
+            {
+                const Eigen::Vector3d &point = pred_pc->points_[i];
+                //const Eigen::Vector3d &color = o3d_pc->colors_[i];
+                //
+                *iter_x = point.x();
+                *iter_y = point.y();
+                *iter_z = point.z();
+                // *iter_r = static_cast<uint8_t>(color.x() * 255.0);
+                // *iter_g = static_cast<uint8_t>(color.y() * 255.0);
+                // *iter_b = static_cast<uint8_t>(color.z() * 255.0);
+            }
+        }
+        
         auto send_goal_options = rclcpp_action::Client<NBVAction>::SendGoalOptions();
             send_goal_options.goal_response_callback =
               std::bind(&NBV::goal_response_callback, this, std::placeholders::_1);
             send_goal_options.feedback_callback =
               std::bind(&NBV::feedback_callback, this, std::placeholders::_1, std::placeholders::_2);
             send_goal_options.result_callback =
-              std::bind(&NBV::result_callback, this, std::placeholders::_1, std::ref(plant_info));
+              std::bind(&NBV::result_callback, this, std::placeholders::_1, std::ref(plant_info), segment_color);
+        
         auto future = nbv_action_client->async_send_goal(goal_msg, send_goal_options);
         rclcpp::spin_until_future_complete(node_, future);
         auto result = future.get();
-        RCLCPP_INFO(node_->get_logger(), "Got Result");
+        
+
+        RCLCPP_INFO(node_->get_logger(), "Goal Confirmed %d, %d", result->get_status(), result->is_result_aware());
+        if (wait_for_nbv) {
+            if (!future.get()->is_result_aware()) {
+                RCLCPP_INFO(node_->get_logger(), "Not Result Aware");
+                return;
+            }
+            auto result_future = nbv_action_client->async_get_result(future.get());
+            rclcpp::spin_until_future_complete(node_, result_future);            
+        }
     }
 
     void NBV::goal_response_callback(const NBVGoalHandle::SharedPtr & goal_handle)
@@ -97,16 +142,18 @@ namespace benchbot_xarm6 {
         NBVGoalHandle::SharedPtr,
         const std::shared_ptr<const NBVAction::Feedback> feedback)
     {
-        RCLCPP_INFO(node_->get_logger(), feedback->progress.c_str());
+        RCLCPP_INFO(node_->get_logger(), "Feedback: %s", feedback->progress.c_str());
     }
 
     void NBV::result_callback(
         const NBVGoalHandle::WrappedResult & result,
-        PlantInfo& plant_info)
+        PlantInfo& plant_info,
+        std::tuple<uint8_t, uint8_t, uint8_t> segment_color)
     {
         RCLCPP_INFO(node_->get_logger(), "Result Callback");
         switch (result.code) {
             case rclcpp_action::ResultCode::SUCCEEDED:
+                RCLCPP_INFO(node_->get_logger(), "Goal Succeeded");
                 break;
             case rclcpp_action::ResultCode::ABORTED:
                 RCLCPP_ERROR(node_->get_logger(), "Goal was aborted");
@@ -125,18 +172,35 @@ namespace benchbot_xarm6 {
             ss << number << " ";
         }
         RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
-        plant_info.nbv_optimal_order = result.result->optimal_order;
-        plant_info.nbv_view_points = result.result->view_points;
-        plant_info.nbv_step += 1;
+
+        // plant_info.nbv_optimal_order = result.result->optimal_order;
+        // plant_info.nbv_view_points = result.result->view_points;
+        // plant_info.nbv_view_center = result.result->view_center;
+        // plant_info.nbv_step += 1;
+
+        for (auto & pc : plant_info.unique_point_clouds) {
+            if (pc.segment_color == segment_color) {
+                pc.nbv_optimal_order = result.result->optimal_order;
+                pc.nbv_view_points = result.result->view_points;
+                pc.nbv_view_center = result.result->view_center;
+                pc.nbv_step += 1;
+                pc.nbv_new_points = result.result->num_new_points;
+            }
+        }
+        
         ss << plant_info.plant_name << " " 
             << plant_info.plant_variant << " "  
             << std::to_string(plant_info.instance_segmentation_id_b) 
-            << " New NBV step " << std::to_string(plant_info.nbv_step) << ": ";
-        for (auto number : plant_info.nbv_optimal_order) {
+            << " New NBV " << result.result->num_new_points << ": ";
+        for (auto number : result.result->optimal_order) {
             ss << number << " ";
         }
         ss << " view_points: ";
-        for (auto number : plant_info.nbv_view_points) {
+        for (auto number : result.result->view_points) {
+            ss << number << " ";
+        }
+        ss << " view_center: ";
+        for (auto number : result.result->view_center) {
             ss << number << " ";
         }
         ss << &plant_info;
