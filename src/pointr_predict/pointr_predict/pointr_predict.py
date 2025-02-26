@@ -4,7 +4,8 @@ from pointr_minimal.utils.config import cfg_from_yaml_file
 from pointr_minimal.tools import builder
 from pointr_minimal.datasets.io import IO
 from pointr_minimal.datasets.data_transforms import Compose
-from next_best_view_gen.nbv_gen import NBV
+#from next_best_view_gen.nbv_gen import NBV
+from next_best_view_gen.nbv_gen_parallel import NBV
 
 import torch
 import open3d
@@ -59,13 +60,13 @@ class AdaPoinTrModel():
         dense_points = ret[-1].squeeze(0).detach().cpu().numpy()
         self.infer_count += 1
         if save_path != None:
-            input_pcd = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(pcd))
-            dense_pcd = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(dense_points))
+            input_pcd = open3d.t.geometry.PointCloud(open3d.core.Tensor(pcd))
+            dense_pcd = open3d.t.geometry.PointCloud(open3d.core.Tensor(dense_points))
             #pred_path = os.path.join(*[save_path,"pred.pcd"])
             os.makedirs('/'.join(save_path.split('/')[:-1]), exist_ok=True)
             print(f"{save_path}_ModelInput.pcd")
-            open3d.io.write_point_cloud(f"{save_path}_{self.infer_count}_ModelInput.pcd", input_pcd)
-            open3d.io.write_point_cloud(f"{save_path}_{self.infer_count}_ModelPred.pcd", dense_pcd)
+            open3d.t.io.write_point_cloud(f"{save_path}_{self.infer_count}_ModelInput.pcd", input_pcd)
+            open3d.t.io.write_point_cloud(f"{save_path}_{self.infer_count}_ModelPred.pcd", dense_pcd)
 
         return dense_points
     
@@ -96,22 +97,28 @@ class PartialPCDPredictorNode(Node):
         feedback_msg.progress = "parsed input"
         goal_handle.publish_feedback(feedback_msg)
         self.received_pcd += 1
-        print(f"input_pcd: {pred_input_pcd.shape}")
+        #print(f"input_pcd: {pred_input_pcd.shape}")
         # prediction
         pred = self.predictor_model.inference_single_pcd(pred_input_pcd,f"/home/lxianglabxing/colcon_ws/{save_prefix}")
         feedback_msg.progress = "prediction generated"
         goal_handle.publish_feedback(feedback_msg)
-        print(f"pred_pcd: {pred.shape}")
+        #print(f"pred_pcd: {pred.shape}")
         # next-best-view selection
         nbv_input_pcd_ros2 : PointCloud2 = goal_handle.request.nbv_input_pcd 
         nbv_input_pcd = np.frombuffer(nbv_input_pcd_ros2.data, dtype=np.uint8).reshape(-1,nbv_input_pcd_ros2.point_step)
         nbv_input_pcd = pred_input_pcd[:,0:12].view(dtype=np.float32).reshape(-1,3)
-        o3d_input = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(nbv_input_pcd))
-        o3d_pred = open3d.geometry.PointCloud(open3d.utility.Vector3dVector(pred))
+        o3d_input   = open3d.t.geometry.PointCloud(open3d.core.Tensor(nbv_input_pcd))
+        o3d_pred    = open3d.t.geometry.PointCloud(open3d.core.Tensor(pred))
         self.NBV.set_pcds(o3d_input,o3d_pred)
         feedback_msg.progress = "set input to NBV"
         goal_handle.publish_feedback(feedback_msg)
-        view_points, optimal_order, view_center, pred_new_points = self.NBV.generate(const_r=False)
+
+        parsed_option = [int(option) for option in goal_handle.request.pred_option.split(',')]
+        view_points, optimal_order, view_center, pred_new_points = self.NBV.generate(
+            threaded=parsed_option[0],
+            const_r=parsed_option[1],
+            num_grad=parsed_option[2])
+        
         feedback_msg.progress = "generated NBV"
         goal_handle.publish_feedback(feedback_msg)
         print(f"generated_NBV: {optimal_order}")
@@ -124,7 +131,7 @@ class PartialPCDPredictorNode(Node):
         goal_handle.succeed()
         feedback_msg.progress = "completed"
         goal_handle.publish_feedback(feedback_msg)
-        print(f"finished")
+        #print(f"finished")
         return result
 
 

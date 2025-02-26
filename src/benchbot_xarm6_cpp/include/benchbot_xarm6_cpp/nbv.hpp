@@ -27,7 +27,8 @@ namespace benchbot_xarm6
                 const std::shared_ptr<open3d::geometry::PointCloud>& nbv_pc,
                 PlantInfo& plant_info,
                 std::tuple<uint8_t, uint8_t, uint8_t> segment_color,
-                bool wait);
+                bool wait,
+                std::string& pred_option);
 
         private:
             rclcpp::Node::SharedPtr node_;

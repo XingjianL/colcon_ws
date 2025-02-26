@@ -3,6 +3,7 @@
 sensor_msgs/PointCloud2 pred_input_pcd
 sensor_msgs/PointCloud2 nbv_input_pcd
 string save_prefix
+string pred_option
 ---
 float32[] view_points
 float32[] view_center

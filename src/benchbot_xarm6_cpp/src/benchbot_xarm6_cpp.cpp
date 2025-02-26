@@ -17,7 +17,14 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto const logger = rclcpp::get_logger("benchbot_xarm6_cpp");
-
+  // rclcpp::get_logger("rcl").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("rclcpp").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("rcl_action").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("rclcpp_action").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("benchbot_xarm_cpp.rclcpp_action").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("benchbot_nbv.rclcpp_action").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("pluginlib.ClassLoader").set_level(rclcpp::Logger::Level::Error);
+  // rclcpp::get_logger("rmw_fastrtps_cpp").set_level(rclcpp::Logger::Level::Error);
   printf("hello world benchbot_xarm6_cpp package\n");
 
   bool reconstruct_point_clouds = true;
@@ -31,39 +38,52 @@ int main(int argc, char ** argv)
   int nbv_color_id = -1;
   std::string PCGSeedIncr = "1";
   std::string temperature = "3500,0,1";
+  std::string pred_option = "0,1,1000"; // threaded (1,0), constant radius (1,0), number of gradient descents or r if constant radius is 1
+  std::string run_config = "config";
   // MARK: Arg List
   for (int arg_i = 0; arg_i < argc; arg_i++)
   {
     std::string arg = argv[arg_i];
+    run_config += "\n";
+    run_config += arg.c_str();
+    run_config += ":";
     RCLCPP_INFO(logger, arg.c_str());
     if (arg.find("--no-pc") != std::string::npos) {
       printf("Skip Reconstructing PointClouds");
       reconstruct_point_clouds = false;
       sample_gap = 4;
+      
     }
     if (arg == "--both") {
       capture_both = true;
     }
-    if (arg == "--pred") {
+    if (arg == "--pred" && arg_i + 1 < argc) {
+      pred_option = argv[arg_i+1];
       pred = true;
+      run_config += argv[arg_i+1];
+      ++arg_i;
     }
     if (arg == "--reset-time") {
       reset_time = true;
     }
     if (arg == "--light-temp" && arg_i + 1 < argc) {
       temperature = argv[arg_i+1];
+      run_config += argv[arg_i+1];
       ++arg_i;
     }
     if (arg == "--arm-sample-gap" && arg_i + 1 < argc) {
       sample_gap = std::stoi(argv[arg_i+1]);
+      run_config += argv[arg_i+1];
       ++arg_i;
     }
     if (arg == "--bench-sample-gap" && arg_i + 1 < argc) {
       plant_id_gap = std::stoi(argv[arg_i+1]);
+      run_config += argv[arg_i+1];
       ++arg_i;
     }
     if (arg == "--arm_random_locations" && arg_i + 1 < argc) {
       arm_randomness = std::stod(argv[arg_i+1]);
+      run_config += argv[arg_i+1];
       ++arg_i;
     }
     if (arg == "--closest") {
@@ -71,16 +91,21 @@ int main(int argc, char ** argv)
     }
     if (arg == "--nbv-color-id" && arg_i + 1 < argc) {
       nbv_color_id = std::stoi(argv[arg_i+1]);
+      run_config += argv[arg_i+1];
       ++arg_i;
     }
     if (arg == "--pcg-seed-incr" && arg_i + 1 < argc) {
       PCGSeedIncr = argv[arg_i+1];
+      run_config += argv[arg_i+1];
       ++arg_i;
     }
   }
 
   // MARK: Initializations
-
+  auto const logger_node = std::make_shared<rclcpp::Node>(
+    "benchbot_debug",
+    rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true)
+  );
   // environment connection and robots
   auto const env_node = std::make_shared<rclcpp::Node>(
     "benchbot_xarm6_cpp",
@@ -93,13 +118,17 @@ int main(int argc, char ** argv)
   benchbot_xarm6::PlanarRobot BenchBot_platform(env_node, "BenchBot", false);    // planar platform control
   benchbot_xarm6::PlanarRobot xArm_platform(env_node, "xArm6", true);    // planar platform control
   std::thread spin_thread(spin_node_in_thread, env_node);
-  rclcpp::sleep_for(std::chrono::milliseconds(5000));
+  std::thread spin_log_thread(spin_node_in_thread, logger_node);
+  rclcpp::sleep_for(std::chrono::milliseconds(1000));
   if (reset_time) {
     env.EnvPublishCommand("TimeIncr:1:LightSet:"+temperature+":PCGSeedIncr:"+PCGSeedIncr);
   } else {
     env.EnvPublishCommand("TimeIncr:0:LightSet:"+temperature+":PCGSeedIncr:"+PCGSeedIncr);
   }
-  rclcpp::sleep_for(std::chrono::milliseconds(10000));
+  if (PCGSeedIncr != "0") {
+    rclcpp::sleep_for(std::chrono::milliseconds(4000));
+  }
+  rclcpp::sleep_for(std::chrono::milliseconds(1000));
   // camera init
   std::string cam_node_name = "benchbot_xarm6_camera";
   env.EnvPublishCommand("GetSceneInfo:0");
@@ -112,6 +141,13 @@ int main(int argc, char ** argv)
     }
   }
 
+  std::string file_name = std::to_string(env.creation_time_.seconds()) + ".txt";
+  std::filesystem::path dir_path = "output/robot/";
+  std::filesystem::create_directories(dir_path);
+  std::ofstream run_log_file_("output/robot/robot_" + file_name);
+  run_log_file_ << run_config;
+  run_log_file_.close();
+
   env.EnvPublishCommand("GetSceneInfo:0");
   RCLCPP_INFO(logger, "Finished Init: Starting Setpoints");
   std::random_device rd;
@@ -122,10 +158,12 @@ int main(int argc, char ** argv)
     "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_xyz.csv", 
     "/home/lxianglabxing/colcon_ws/src/benchbot_xarm6_cpp/setpoints/setpoints1_rot.csv"
   );
-
-
+  // rclcpp::get_logger("benchbot_xarm6_cpp").set_level(rclcpp::Logger::Level::Debug);
+  // rclcpp::get_logger("benchbot_nbv").set_level(rclcpp::Logger::Level::Debug);
+  rclcpp::get_logger("move_group_interface").set_level(rclcpp::Logger::Level::Error);
+  rclcpp::get_logger("benchbot_debug").set_level(rclcpp::Logger::Level::Debug);
   //for (int xarm_sample = 0; xarm_sample < 5 * 16; xarm_sample+=sample_gap){
-  for (int plant_id = 0; plant_id < 3*7; plant_id+=plant_id_gap){
+  for (int plant_id = 0; plant_id < 1*1; plant_id+=plant_id_gap){
     geometry_msgs::msg::Point move_goal;
     geometry_msgs::msg::Point look_at_goal;
 
@@ -158,7 +196,7 @@ int main(int argc, char ** argv)
     // int nbv_select = 0;
     robot1.move_and_look_at(move_goal, look_at_goal);
 
-    rclcpp::sleep_for(std::chrono::milliseconds(2000)); // wait for the robot in UE5 to settle
+    rclcpp::sleep_for(std::chrono::milliseconds(200)); // wait for the robot in UE5 to settle
     //for (int plant_id = 0; plant_id < 6*7; plant_id++){
     for (int xarm_sample = 0; xarm_sample < 5 * 16; xarm_sample+=sample_gap){
 
@@ -206,12 +244,12 @@ int main(int argc, char ** argv)
         success = false;
         int nbv_view_select = 0;
         // get closest plant
-        RCLCPP_INFO(logger, "pred - closest plant");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "pred - closest plant");
         int closest_plant_id = env.GetClosestPlant(env.GetRobotID("xArm6"));
-        RCLCPP_INFO(logger, "pred - optimal nbv");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "pred - optimal nbv");
         int nbv_optimal_pipeline_ind = env.plant_info_[closest_plant_id].OptimalNBV();
         if (nbv_optimal_pipeline_ind < 0) {
-          RCLCPP_INFO(logger, "pred - no optimal nbv");
+          RCLCPP_WARN(logger, "pred - no optimal nbv");
         } else {
           BenchBot_platform.set_joints_targets(
             {"benchbot_plate", "benchbot_camera"}, 
@@ -219,7 +257,7 @@ int main(int argc, char ** argv)
           );
           auto& optimal_pipeline = env.plant_info_[closest_plant_id].unique_point_clouds[nbv_optimal_pipeline_ind];
           for (int nbv_order : optimal_pipeline.nbv_optimal_order){
-            RCLCPP_INFO(logger, "move and look at");
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "move and look at");
             {
               move_goal.x = optimal_pipeline.nbv_view_points[nbv_order * 3];
               move_goal.y = optimal_pipeline.nbv_view_points[nbv_order * 3 + 1];
@@ -238,7 +276,7 @@ int main(int argc, char ** argv)
           }
           if (!success){
             // failed: either no optimal order (not sampled yet) or all sampled points failed
-            RCLCPP_INFO(logger, "No success, %d", optimal_pipeline.nbv_step);
+            RCLCPP_WARN(logger, "No success, %d", optimal_pipeline.nbv_step);
           }
         }
       }
@@ -274,7 +312,7 @@ int main(int argc, char ** argv)
         env.BuildPointClouds(!closest, closest);
         env.SavePointClouds();
         if (pred) {
-          env.PredictPointCloud(nbv, nbv_color_id, true);
+          env.PredictPointCloud(nbv, nbv_color_id, true, pred_option);
           // while(nbv->waiting_nbv_) {
           //   //rclcpp::sleep_for(std::chrono::milliseconds(200));
           //   RCLCPP_INFO(logger, "Waiting NBV");
@@ -283,15 +321,15 @@ int main(int argc, char ** argv)
       } else {
         env.SaveRobotImages();
       }
-      RCLCPP_INFO(logger, "Update Log");
+      RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Update Log");
       env.UpdateLog();
-      RCLCPP_INFO(logger, "LogUpdated");
+      RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "LogUpdated");
       env.SaveLog();
       rclcpp::sleep_for(std::chrono::milliseconds(100));
       //break;
     }
   }
-
+  RCLCPP_INFO(logger, "Finished: Saving Log");
   env.SaveLog();
   //env.EnvPublishCommand("PCGSeedIncr:1");
   for (size_t robot_id = 0; robot_id < env.robot_info_.size(); robot_id++){
@@ -302,11 +340,12 @@ int main(int argc, char ** argv)
     }
   }
   
-
+  RCLCPP_INFO(logger, "Shutting down");
   //env.EnvPublishCommand("PCGSeedIncr:1");
   rclcpp::sleep_for(std::chrono::milliseconds(2000));
   rclcpp::shutdown();
   spin_thread.join();
+  spin_log_thread.join();
   printf("goodbye world benchbot_xarm6_cpp package\n");
 
   return 0;

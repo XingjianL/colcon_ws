@@ -110,7 +110,7 @@ namespace benchbot_xarm6
         void clear();
         void BuildPointClouds(bool save_intermediate, bool closest_plant);
         void SavePointClouds();
-        void PredictPointCloud(const std::shared_ptr<NBV>& nbv_, int id, bool wait_for_nbv);
+        void PredictPointCloud(const std::shared_ptr<NBV>& nbv_, int id, bool wait_for_nbv, std::string& pred_option);
 
         void UpdateLog();
         void SaveLog();
@@ -120,7 +120,7 @@ namespace benchbot_xarm6
         
         int GetClosestPlant(int robot_id);
         int GetRobotID(const std::string& robot_name);
-
+        rclcpp::Time creation_time_;
         //open3d::visualization::Visualizer visualizer;
     private:
         const std::string PLANTMARKER = "Plant";
@@ -133,8 +133,6 @@ namespace benchbot_xarm6
         void ParseData(const std::string& data, std::vector<RobotInfo>& robot_info, std::vector<PlantInfo>& plant_info);
         std::vector<std::string> SplitByDelimiter(const std::string& data, const std::string& delimiter);
         rclcpp::Subscription<std_msgs::msg::String>::SharedPtr environment_info_;
-
-        rclcpp::Time creation_time_;
 
         int pc_build_count_;  
 

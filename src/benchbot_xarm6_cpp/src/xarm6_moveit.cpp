@@ -18,9 +18,9 @@ benchbot_xarm6::XARM6MoveIt::XARM6MoveIt(const std::string &robot_name, rclcpp::
     robot_name_ = robot_name;
     using moveit::planning_interface::MoveGroupInterface;
     move_group_ = std::make_shared<MoveGroupInterface>(node, robot_name);
-    planning_scene_interface_ = std::make_shared<moveit::planning_interface::PlanningSceneInterface>();
+    //planning_scene_interface_ = std::make_shared<moveit::planning_interface::PlanningSceneInterface>();
     configure_move_group();
-    configure_obstacles();
+    //configure_obstacles();
     go_home();
 }
 
@@ -88,7 +88,7 @@ void benchbot_xarm6::XARM6MoveIt::configure_move_group(){
         return;
     }
     //move_group_->setPlannerId("RRTConnectkConfigDefault");
-    move_group_->setPlanningTime(1.0);
+    move_group_->setPlanningTime(0.5);
     move_group_->setNumPlanningAttempts(3);
     move_group_->setMaxVelocityScalingFactor(1);
     move_group_->setMaxAccelerationScalingFactor(1);
@@ -113,23 +113,19 @@ void benchbot_xarm6::XARM6MoveIt::spawn_or_update_object(
     moveit_msgs::msg::CollisionObject collision_object;
     collision_object.header.frame_id = "world";  // Frame in which the object is defined
     collision_object.id = object_id;  // ID of the object
-    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "1 obstacles");
     // Define the shape of the object (a box)
     shape_msgs::msg::SolidPrimitive primitive;
     primitive.type = primitive.SPHERE;
     primitive.dimensions.resize(1);
     primitive.dimensions[0] = size;  // radius
-    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "2 obstacles");
     // Define the pose of the object
     geometry_msgs::msg::Pose object_pose;
     object_pose.position = position;
     object_pose.orientation.w = 1.0;  // Default orientation
-    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "3 obstacles");
     // Add the primitive and pose to the collision object
     collision_object.primitives.push_back(primitive);
     collision_object.primitive_poses.push_back(object_pose);
     collision_object.operation = operation;
-    RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "4 obstacles");
     // Apply the object to the planning scene
     std::vector<moveit_msgs::msg::CollisionObject> collision_objects;
     collision_objects.push_back(collision_object);
@@ -233,14 +229,14 @@ bool benchbot_xarm6::XARM6MoveIt::move_and_look_at(
     moveit_msgs::msg::RobotTrajectory trajectory;
     double fraction = move_group_->computeCartesianPath(waypoints, 0.01, 0.0, trajectory);
     // attempt linear movements
-    if (fraction > 0.9999) {
+    if (fraction > 0.999) {
         moveit::planning_interface::MoveGroupInterface::Plan plan;
         plan.trajectory_ = trajectory;
 
         // Execute the plan
         move_group_->execute(plan);
         move_group_->clearPoseTargets();
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "Finished Cartesian Movement");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Finished Cartesian Movement");
         return true;
     }
     // joint movements
@@ -253,7 +249,7 @@ bool benchbot_xarm6::XARM6MoveIt::move_and_look_at(
     {
         move_group_->execute(plan);
         move_group_->clearPoseTargets();
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "Finished LookAt Movement");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Finished LookAt Movement");
         return true;
     }
     else

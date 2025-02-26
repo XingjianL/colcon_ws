@@ -51,15 +51,15 @@ namespace benchbot_xarm6 {
     void EnvironmentInfo::waiting_for_sync(){
         waiting_msg = true;
         while(waiting_msg){
-            RCLCPP_INFO(node_->get_logger(), "waiting for sync - Environment");
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "waiting for sync - Environment");
             EnvPublishCommand("GetSceneInfo:0");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
-        RCLCPP_INFO(node_->get_logger(), "got Environment");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "got Environment");
     }
     // MARK: env callback
     void EnvironmentInfo::EnvStringCallback(const std_msgs::msg::String::ConstSharedPtr& msg) {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo");
         ParseData(msg->data, robot_info_, plant_info_);
         waiting_msg = false;
     }
@@ -149,7 +149,7 @@ namespace benchbot_xarm6 {
     }
 
     void EnvironmentInfo::BuildPointClouds(bool save_intermediate, bool closest_plant) {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: Started");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo::BuildPointClouds: Started");
         int robot_id = GetRobotID("xArm6");
         robot_info_[robot_id].image_subscriber->under_recon_ = true;
         pc_build_count_ += 1;
@@ -178,7 +178,7 @@ namespace benchbot_xarm6 {
         
         std::string save_intermediate_path = "";
         
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::BuildPointClouds: %f %f", 
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo::BuildPointClouds: %f %f", 
             robot_info_[robot_id].base_transforms[0]/100.0, robot_info_[robot_id].base_transforms[1]/100.0);
         
         if (closest_plant && !save_intermediate){
@@ -219,7 +219,7 @@ namespace benchbot_xarm6 {
     }
 
     void EnvironmentInfo::SavePointClouds() {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::SavePointClouds: Started");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo::SavePointClouds: Started");
         for(auto& plant : plant_info_){
             for (auto& pc : plant.unique_point_clouds) {
                 std::string filepath = "output/pcd/plant_" + std::to_string(creation_time_.seconds()) + "/" +
@@ -258,19 +258,41 @@ namespace benchbot_xarm6 {
     void EnvironmentInfo::PredictPointCloud(
         const std::shared_ptr<NBV>& nbv_, 
         int color_id,
-        bool wait_for_nbv) 
+        bool wait_for_nbv,
+        std::string& pred_option) 
     {
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Started");
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo::PredictPointCloud: Started");
         
         int robot_id = GetRobotID("xArm6");
         int closest_plant = GetClosestPlant(robot_id);
         plant_info_[closest_plant].CombinePointClouds();
+
+        // check if color id exist for the plant
+        // if it does, only run nbv for this color id
+        // if not, run all colors and prioritize specifics later
+        bool run_pred = false;
         for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
             if (std::get<0>(pc.segment_color) != color_id && color_id != -1) {
                 continue;
             }
-            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial for %p", static_cast<void*>(&plant_info_[closest_plant]));
+            if (pc.o3d_pc->points_.size() < 200) {
+                continue;
+            }
+            run_pred = true;
+        }
+
+        // nbv message prep
+        for(auto& pc : plant_info_[closest_plant].unique_point_clouds){
+            if (std::get<0>(pc.segment_color) != color_id && color_id != -1 && run_pred) {
+                continue;
+            }
+            if (pc.o3d_pc->points_.size() < 200) {
+                continue;
+            }
+            run_pred = true;
+            //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Preparing Partial for %p", static_cast<void*>(&plant_info_[closest_plant]));
             auto pcd_copy = std::make_shared<open3d::geometry::PointCloud>(pc.o3d_pc->points_);
+            
             // normalizing to origin
             Eigen::Vector3d translation_vector(
                 robot_info_[robot_id].base_transforms[0]/100,
@@ -280,22 +302,32 @@ namespace benchbot_xarm6 {
             pcd_copy->Translate(translation_vector);
 
             // basic down sampling and filters
-            pcd_copy = pcd_copy->VoxelDownSample(0.001);
-            auto [filtered_pcd, inlier_ind] = pcd_copy->RemoveRadiusOutliers(16, 0.05);
-            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Translate %f %f %f", translation_vector.x(), translation_vector.y(), translation_vector.z());
-            
-            Eigen::Vector3d mean(0,0,0);
-            for (const auto& point: filtered_pcd->points_){
-                mean += point;
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo::PredictPointCloud: copy %ld",pcd_copy->points_.size());
+            pcd_copy = pcd_copy->VoxelDownSample(0.0025);
+            auto [filtered_pcd, inlier_ind] = pcd_copy->RemoveRadiusOutliers(4, 0.025);
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "EnvironmentInfo::PredictPointCloud: filtered %ld",filtered_pcd->points_.size());
+            if (filtered_pcd->IsEmpty()) {
+                filtered_pcd = pcd_copy;
             }
-            mean /= static_cast<double>(filtered_pcd->points_.size());
-            RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: mean %f %f %f", mean.x(), mean.y(), mean.z());
-
+            //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Translate %f %f %f", translation_vector.x(), translation_vector.y(), translation_vector.z());
+            
+            // Eigen::Vector3d mean(0,0,0);
+            // for (const auto& point: filtered_pcd->points_){
+            //     mean += point;
+            // }
+            // mean /= static_cast<double>(filtered_pcd->points_.size());
+            //RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: mean %f %f %f", mean.x(), mean.y(), mean.z());
             if (filtered_pcd->points_.size() > 2000){
                 filtered_pcd = filtered_pcd->FarthestPointDownSample(2000);
             }
             plant_info_[closest_plant].combined_point_cloud->Translate(translation_vector);
-            nbv_->publish_point_cloud(filtered_pcd,plant_info_[closest_plant].combined_point_cloud, plant_info_[closest_plant], pc.segment_color, wait_for_nbv);
+            nbv_->publish_point_cloud(
+                filtered_pcd,
+                plant_info_[closest_plant].combined_point_cloud, 
+                plant_info_[closest_plant], 
+                pc.segment_color, 
+                wait_for_nbv,
+                pred_option);
         }
         plant_info_[closest_plant].combined_point_cloud->Clear();
         RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "EnvironmentInfo::PredictPointCloud: Finished");
@@ -340,7 +372,7 @@ namespace benchbot_xarm6 {
         for (size_t i = 0; i < robot_info_.size(); i++){
             if (robot_info_[i].topic_name == "xArm6"){
                 robot_info_[i].image_subscriber->capture_count_ += 1;
-                RCLCPP_INFO(rclcpp::get_logger("tomato_xarm6_camera"), "Saving images");
+                RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Saving images");
                 robot_info_[i].image_subscriber->save_images("output/robot/images_"+std::to_string(creation_time_.seconds())+"/");
             }
         }
@@ -423,6 +455,9 @@ namespace benchbot_xarm6 {
                 optimal_nbv_ind = i;
             }
         }
+        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), 
+            "PlantInfo::OptimalNBV: Optimal for %d %d is %d: %f",
+            instance_segmentation_id_g, instance_segmentation_id_b, optimal_nbv_ind, max_information_gain);
         return optimal_nbv_ind;
     }
 
@@ -463,7 +498,7 @@ namespace benchbot_xarm6 {
 
     void RobotInfo::ConfigCamera(std::string &node_name, bool capture_both) {
         image_subscriber = std::make_shared<ImageSubscriber>(node_name, camera_FOV, camera_width, camera_height, capture_both, topic_name);
-        RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_camera"), "FOV: %f, width: %d, height: %d", camera_FOV, camera_width, camera_height);
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "FOV: %f, width: %d, height: %d", camera_FOV, camera_width, camera_height);
 
         //image_subscriber->update_intrinsics(camera_FOV, camera_width, camera_height);
     }

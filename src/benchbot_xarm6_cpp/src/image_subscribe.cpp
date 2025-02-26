@@ -281,6 +281,7 @@ namespace benchbot_xarm6 {
                     save_intermediate//,
                     //visualizer
                     );
+                RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "new pcd added: %d %d %d", std::get<0>(uniqueColor), std::get<1>(uniqueColor), std::get<2>(uniqueColor));
             }
             //RCLCPP_INFO(node_->get_logger(), "num of point clouds: %ld", o3d_pc_vector_.size());
             //convert_to_ros_pointcloud(*o3d_pc, ros_pc, callback_time);

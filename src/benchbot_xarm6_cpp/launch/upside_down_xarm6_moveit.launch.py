@@ -65,7 +65,7 @@ def launch_setup(context, *args, **kwargs):
         executable="move_group",
         output="screen",
         parameters=[moveit_config.to_dict()],
-        arguments=["--log-level", "debug"],
+        arguments=["--log-level", "WARN"],
     )
 
     # RViz

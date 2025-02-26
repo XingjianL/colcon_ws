@@ -42,9 +42,10 @@ namespace benchbot_xarm6 {
         const std::shared_ptr<open3d::geometry::PointCloud>& nbv_pc,
         PlantInfo& plant_info,
         std::tuple<uint8_t, uint8_t, uint8_t> segment_color,
-        bool wait_for_nbv) 
+        bool wait_for_nbv,
+        std::string& pred_option) 
     {
-        RCLCPP_INFO(node_->get_logger(), "plant_info: %p", static_cast<void*>(&plant_info));
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "plant_info: %p", static_cast<void*>(&plant_info));
         waiting_nbv_ = true;
         auto goal_msg = NBVAction::Goal();
         if (!nbv_action_client->wait_for_action_server()) {
@@ -55,8 +56,9 @@ namespace benchbot_xarm6 {
             std::to_string(plant_info.id) + "/" + plant_info.plant_variant + "/" + std::to_string(std::get<0>(segment_color)) + "_" + 
             std::to_string(std::get<1>(segment_color)) + "_" + std::to_string(std::get<2>(segment_color));
         goal_msg.save_prefix = save_prefix;
-
+        goal_msg.pred_option = pred_option;
         {
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"),"partial publish nbv input: %ld", nbv_pc->points_.size());
             goal_msg.nbv_input_pcd.width = nbv_pc->points_.size();
             goal_msg.nbv_input_pcd.is_dense = false;
             goal_msg.nbv_input_pcd.is_bigendian = false;
@@ -66,7 +68,7 @@ namespace benchbot_xarm6 {
             sensor_msgs::PointCloud2Iterator<float> iter_x(goal_msg.nbv_input_pcd, "x");
             sensor_msgs::PointCloud2Iterator<float> iter_y(goal_msg.nbv_input_pcd, "y");
             sensor_msgs::PointCloud2Iterator<float> iter_z(goal_msg.nbv_input_pcd, "z");
-            RCLCPP_INFO(node_->get_logger(),"partial publish: %ld", nbv_pc->points_.size());
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"),"adding data");
             for (size_t i = 0; i < nbv_pc->points_.size(); ++i, ++iter_x, ++iter_y, ++iter_z)//, ++iter_r, ++iter_g, ++iter_b)
             {
                 const Eigen::Vector3d &point = pred_pc->points_[i];
@@ -79,8 +81,10 @@ namespace benchbot_xarm6 {
                 // *iter_g = static_cast<uint8_t>(color.y() * 255.0);
                 // *iter_b = static_cast<uint8_t>(color.z() * 255.0);
             }
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"),"partial nbv input message created");
         }
         {
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"),"partial publish pred input: %ld", pred_pc->points_.size());
             goal_msg.pred_input_pcd.width = pred_pc->points_.size();
             goal_msg.pred_input_pcd.is_dense = false;
             goal_msg.pred_input_pcd.is_bigendian = false;
@@ -90,7 +94,7 @@ namespace benchbot_xarm6 {
             sensor_msgs::PointCloud2Iterator<float> iter_x(goal_msg.pred_input_pcd, "x");
             sensor_msgs::PointCloud2Iterator<float> iter_y(goal_msg.pred_input_pcd, "y");
             sensor_msgs::PointCloud2Iterator<float> iter_z(goal_msg.pred_input_pcd, "z");
-            RCLCPP_INFO(node_->get_logger(),"partial publish: %ld", pred_pc->points_.size());
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"),"adding data");
             for (size_t i = 0; i < pred_pc->points_.size(); ++i, ++iter_x, ++iter_y, ++iter_z)//, ++iter_r, ++iter_g, ++iter_b)
             {
                 const Eigen::Vector3d &point = pred_pc->points_[i];
@@ -103,6 +107,7 @@ namespace benchbot_xarm6 {
                 // *iter_g = static_cast<uint8_t>(color.y() * 255.0);
                 // *iter_b = static_cast<uint8_t>(color.z() * 255.0);
             }
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"),"partial pred input message created");
         }
         
         auto send_goal_options = rclcpp_action::Client<NBVAction>::SendGoalOptions();
@@ -118,10 +123,10 @@ namespace benchbot_xarm6 {
         auto result = future.get();
         
 
-        RCLCPP_INFO(node_->get_logger(), "Goal Confirmed %d, %d", result->get_status(), result->is_result_aware());
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Goal Confirmed %d, %d", result->get_status(), result->is_result_aware());
         if (wait_for_nbv) {
             if (!future.get()->is_result_aware()) {
-                RCLCPP_INFO(node_->get_logger(), "Not Result Aware");
+                RCLCPP_WARN(node_->get_logger(), "Not Result Aware");
                 return;
             }
             auto result_future = nbv_action_client->async_get_result(future.get());
@@ -134,7 +139,7 @@ namespace benchbot_xarm6 {
         if (!goal_handle) {
             RCLCPP_ERROR(node_->get_logger(), "Goal was rejected by server");
         } else {
-            RCLCPP_INFO(node_->get_logger(), "Goal accepted by server, waiting for result");
+            RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Goal accepted by server, waiting for result");
         }
     }
 
@@ -142,7 +147,7 @@ namespace benchbot_xarm6 {
         NBVGoalHandle::SharedPtr,
         const std::shared_ptr<const NBVAction::Feedback> feedback)
     {
-        RCLCPP_INFO(node_->get_logger(), "Feedback: %s", feedback->progress.c_str());
+        RCLCPP_DEBUG(rclcpp::get_logger("benchbot_debug"), "Feedback: %s", feedback->progress.c_str());
     }
 
     void NBV::result_callback(
@@ -167,12 +172,16 @@ namespace benchbot_xarm6 {
         }
 
         std::stringstream ss;
-        ss << plant_info.plant_name << " " << plant_info.plant_variant << " "  << std::to_string(plant_info.instance_segmentation_id_b) << " Result received: ";
-        for (auto number : result.result->optimal_order) {
-            ss << number << " ";
-        }
-        RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
-
+        ss << plant_info.plant_name << " " << plant_info.plant_variant << " "  
+        << std::to_string(std::get<0>(segment_color)) << " "
+        << std::to_string(std::get<1>(segment_color)) << " "
+        << std::to_string(std::get<2>(segment_color)) << " "
+        << " Result received: ";
+        
+        // for (auto number : result.result->optimal_order) {
+        //     ss << number << " ";
+        // }
+        
         // plant_info.nbv_optimal_order = result.result->optimal_order;
         // plant_info.nbv_view_points = result.result->view_points;
         // plant_info.nbv_view_center = result.result->view_center;
@@ -185,26 +194,28 @@ namespace benchbot_xarm6 {
                 pc.nbv_view_center = result.result->view_center;
                 pc.nbv_step += 1;
                 pc.nbv_new_points = result.result->num_new_points;
+                ss << std::to_string(result.result->num_new_points) << " | "
+                << std::to_string(pc.o3d_pc->points_.size());
             }
         }
-        
-        ss << plant_info.plant_name << " " 
-            << plant_info.plant_variant << " "  
-            << std::to_string(plant_info.instance_segmentation_id_b) 
-            << " New NBV " << result.result->num_new_points << ": ";
-        for (auto number : result.result->optimal_order) {
-            ss << number << " ";
-        }
-        ss << " view_points: ";
-        for (auto number : result.result->view_points) {
-            ss << number << " ";
-        }
-        ss << " view_center: ";
-        for (auto number : result.result->view_center) {
-            ss << number << " ";
-        }
-        ss << &plant_info;
         RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
+        // ss << plant_info.plant_name << " " 
+        //     << plant_info.plant_variant << " "  
+        //     << std::to_string(plant_info.instance_segmentation_id_b) 
+        //     << " New NBV " << result.result->num_new_points << ": ";
+        // for (auto number : result.result->optimal_order) {
+        //     ss << number << " ";
+        // }
+        // ss << " view_points: ";
+        // for (auto number : result.result->view_points) {
+        //     ss << number << " ";
+        // }
+        // ss << " view_center: ";
+        // for (auto number : result.result->view_center) {
+        //     ss << number << " ";
+        // }
+        // ss << &plant_info;
+        // RCLCPP_INFO(node_->get_logger(), ss.str().c_str());
     }
 
 

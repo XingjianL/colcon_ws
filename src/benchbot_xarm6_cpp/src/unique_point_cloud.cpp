@@ -74,7 +74,7 @@ namespace benchbot_xarm6
         o3d_depth_image.Prepare(depth_masked.cols, depth_masked.rows, depth_masked.channels(), 4);
         std::memcpy(o3d_depth_image.data_.data(), depth_masked.data, o3d_depth_image.data_.size());
         
-        //std::cout << "creating o3d_rgbd" << std::endl;
+        std::cout << "creating o3d_rgbd ... ";
         auto rgbd_image = open3d::geometry::RGBDImage::CreateFromColorAndDepth(o3d_rgb_image, o3d_depth_image, 100.0, 1.5, false);
         // visualizer.ClearGeometries();
         // visualizer.AddGeometry(rgbd_image);
@@ -83,20 +83,22 @@ namespace benchbot_xarm6
         // visualizer.UpdateRender();
         
         //visualizer.Run();
-        //std::cout << "creating o3d_pcd" << std::endl;
+        std::cout << "creating o3d_pcd ... " << std::endl;
         auto pcd = open3d::geometry::PointCloud::CreateFromRGBDImage(
             *rgbd_image, intrinsics_
         );
-        //std::cout << "buildPCD: " << pcd->points_.size() << std::endl;
-        if (pcd->points_.size() > 20000) {
-            // pcd = pcd->RandomDownSample(0.1);
-            //std::cout << "buildPCD(randDownsample): " << pcd->points_.size() << std::endl;
+        std::cout << "built PCD: " << pcd->points_.size() << std::endl;
+        // if (pcd->points_.size() > 20000) {
+        //     // pcd = pcd->RandomDownSample(0.1);
+        //     //std::cout << "buildPCD(randDownsample): " << pcd->points_.size() << std::endl;
+        // }
+        if (pcd->points_.size() == 0) {
+            return true;
         }
-        
         pcd->Transform(transform);
 
         // save point cloud of this particular rgbd image
-        if (!save_intermediate.empty() && pcd->points_.size() > 300)
+        if (!save_intermediate.empty() && pcd->points_.size() > 200)
         {
             std::string filepath = save_intermediate + "_Intermediate_" + std::to_string(append_count_) + "_" + filename_;
             open3d::io::WritePointCloudOption o3d_option(true);
@@ -115,7 +117,7 @@ namespace benchbot_xarm6
         if (color != segment_color) {
             return false;
         }
-        if (pc->points_.size() < 100) {
+        if (pc->points_.size() < 200) {
             return true;
         }
         //std::cout << "appendPointCloud: " << pc->points_.size() << std::endl;
