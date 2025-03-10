@@ -101,7 +101,7 @@ void benchbot_xarm6::XARM6MoveIt::configure_obstacles(){
     geometry_msgs::msg::Point position;
     position.z = -0.9;
     RCLCPP_INFO(rclcpp::get_logger("benchbot_xarm6_cpp"), "Spawning obstacles");
-    spawn_or_update_object("plant",position,0.2,moveit_msgs::msg::CollisionObject::ADD);
+    spawn_or_update_object("plant",position,0.3,moveit_msgs::msg::CollisionObject::ADD);
 }
 void benchbot_xarm6::XARM6MoveIt::spawn_or_update_object(
     const std::string& object_id,

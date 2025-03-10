@@ -163,7 +163,7 @@ int main(int argc, char ** argv)
   rclcpp::get_logger("move_group_interface").set_level(rclcpp::Logger::Level::Error);
   rclcpp::get_logger("benchbot_debug").set_level(rclcpp::Logger::Level::Debug);
   //for (int xarm_sample = 0; xarm_sample < 5 * 16; xarm_sample+=sample_gap){
-  for (int plant_id = 0; plant_id < 1*1; plant_id+=plant_id_gap){
+  for (int plant_id = 0; plant_id < 7*7; plant_id+=plant_id_gap){
     geometry_msgs::msg::Point move_goal;
     geometry_msgs::msg::Point look_at_goal;
 
